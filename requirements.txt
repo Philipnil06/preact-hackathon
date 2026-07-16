@@ -1,0 +1,6 @@
+anthropic
+numpy
+opencv-contrib-python
+pyserial
+python-dotenv
+scipy
