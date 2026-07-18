@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "preact-hackathon"
+version = "0.1.0"
+description = "Voice-controlled foam-ball tracking and landing prediction for an embodied-AI demo"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.57",
+    "fastapi>=0.116",
+    "faster-whisper>=1.2.1",
+    "numpy>=2.0",
+    "opencv-contrib-python>=4.10",
+    "pyserial>=3.5",
+    "python-dotenv>=1.0",
+    "scipy>=1.14",
+    "sounddevice>=0.5.5",
+    "uvicorn>=0.35",
+]
+
+[project.scripts]
+preact = "preact.__main__:main"
+preact-calibrate = "preact.calibrate_cli:main"
+preact-validate-trajectory = "preact.trajectory_validation:main"
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

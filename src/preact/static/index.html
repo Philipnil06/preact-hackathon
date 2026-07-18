@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PREACT</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #090b0f;
+      color: #f4f5f7;
+    }
+    main { width: min(1120px, 96vw); padding: 24px 0; }
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 14px;
+    }
+    h1 { margin: 0; letter-spacing: .12em; font-size: clamp(24px, 4vw, 42px); }
+    .tagline { margin: 4px 0 0; color: #9199a8; }
+    .voice { margin: 6px 0 0; color: #c2c7d0; font-size: 13px; }
+    .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+    button {
+      border: 1px solid #3f4652;
+      border-radius: 999px;
+      padding: 10px 17px;
+      background: #171b22;
+      color: #fff;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.track.active { background: #123c28; border-color: #2de386; }
+    button.land.active { background: #4a1819; border-color: #ff5959; }
+    button.stop { color: #bbc1cb; }
+    .modes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .mode {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 58px;
+      padding: 11px 15px;
+      border: 1px solid #282e38;
+      border-radius: 14px;
+      background: #11151b;
+      color: #7f8795;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .mode strong { display: block; color: inherit; font-size: 14px; }
+    .mode small { display: block; margin-top: 2px; font-size: 11px; opacity: .72; }
+    .lamp {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #252a33;
+      box-shadow: inset 0 0 0 1px #353c48;
+    }
+    .mode.tracking.active {
+      color: #8af0b5;
+      border-color: #238955;
+      background: #0d2117;
+    }
+    .mode.tracking.active .lamp {
+      background: #25e27d;
+      box-shadow: 0 0 18px #25e27d;
+    }
+    .mode.landing.active {
+      color: #ff9898;
+      border-color: #a93f42;
+      background: #281112;
+    }
+    .mode.landing.active .lamp {
+      background: #ff3d42;
+      box-shadow: 0 0 18px #ff3d42;
+    }
+    .camera {
+      overflow: hidden;
+      border: 1px solid #2a303a;
+      border-radius: 18px;
+      background: #11151b;
+      box-shadow: 0 20px 80px rgb(0 0 0 / .45);
+      aspect-ratio: 16 / 9;
+    }
+    .camera img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      transition: opacity .2s;
+    }
+    .camera.idle img { opacity: .32; }
+    footer {
+      min-height: 42px;
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 16px;
+      padding: 10px 4px 0;
+      color: #9199a8;
+      font-size: 13px;
+    }
+    #state { color: #f1f3f6; font-weight: 700; }
+    #heard { text-align: right; }
+    @media (max-width: 760px) {
+      header { align-items: start; flex-direction: column; }
+      .modes { grid-template-columns: 1fr; }
+      footer { flex-direction: column; }
+      #heard { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>PREACT</h1>
+        <p class="tagline">See the impact before it happens.</p>
+        <p class="voice" id="voice">Voice disabled</p>
+      </div>
+      <div class="controls">
+        <button id="track" class="track">Start tracking</button>
+        <button id="land" class="land">Calculate landing</button>
+        <button id="stop" class="stop">Stop</button>
+      </div>
+    </header>
+
+    <section class="modes" aria-label="Operating modes">
+      <div id="tracking-mode" class="mode tracking">
+        <span class="lamp" aria-hidden="true"></span>
+        <span>
+          <strong>TRACKING</strong>
+          <small>“Hey Preact, start tracking”</small>
+        </span>
+      </div>
+      <div id="landing-mode" class="mode landing">
+        <span class="lamp" aria-hidden="true"></span>
+        <span>
+          <strong>CALCULATE LANDING</strong>
+          <small>“Hey Preact, calculate where this will land”</small>
+        </span>
+      </div>
+    </section>
+
+    <section id="camera" class="camera idle">
+      <img id="feed" src="/video" alt="PREACT camera tracking view">
+    </section>
+    <footer>
+      <span id="state">IDLE / Waiting for “Hey Preact”</span>
+      <span id="heard">Say “Hey Preact, stop” to return to idle.</span>
+    </footer>
+  </main>
+
+  <script>
+    const track = document.querySelector("#track");
+    const land = document.querySelector("#land");
+    const stop = document.querySelector("#stop");
+    const feed = document.querySelector("#feed");
+    const camera = document.querySelector("#camera");
+    const trackingMode = document.querySelector("#tracking-mode");
+    const landingMode = document.querySelector("#landing-mode");
+    const state = document.querySelector("#state");
+    const heard = document.querySelector("#heard");
+    const voice = document.querySelector("#voice");
+    let feedRetryTimer = null;
+    let feedRetrySequence = 0;
+
+    function reconnectFeed() {
+      feedRetrySequence += 1;
+      feed.src = `/video?run=${Date.now()}-${feedRetrySequence}`;
+    }
+
+    function checkFeed() {
+      if (feed.naturalWidth === 0 || feed.naturalHeight === 0) {
+        reconnectFeed();
+      }
+    }
+
+    feed.addEventListener("error", () => {
+      clearTimeout(feedRetryTimer);
+      feedRetryTimer = setTimeout(reconnectFeed, 500);
+    });
+    setInterval(checkFeed, 1000);
+
+    async function command(endpoint) {
+      const response = await fetch(endpoint, { method: "POST" });
+      const value = await response.json();
+      render(value);
+    }
+
+    function render(value) {
+      const mode = value.mode || "idle";
+      const isTracking = mode === "tracking";
+      const isLanding = mode === "landing";
+      track.classList.toggle("active", isTracking);
+      land.classList.toggle("active", isLanding);
+      trackingMode.classList.toggle("active", isTracking);
+      landingMode.classList.toggle("active", isLanding);
+      camera.classList.toggle("idle", mode === "idle");
+
+      if (isTracking) {
+        const targetState = value.target_state || "searching";
+        if (targetState === "acquiring") {
+          state.textContent = "TRACKING / Show target clearly to lock identity";
+        } else if (targetState === "lost") {
+          state.textContent = "TRACKING / Target lost — show the same target";
+        } else if (targetState === "coasting") {
+          state.textContent = "TRACKING / Predicting through brief target loss";
+        } else if (targetState === "locked") {
+          state.textContent = "TRACKING / Target identity locked";
+        } else {
+          state.textContent = "TRACKING / Searching for target";
+        }
+      } else if (isLanding) {
+        state.textContent = value.landing_x_m !== null
+          ? `CALCULATE LANDING / ${value.landing_x_m.toFixed(2)} m`
+          : "CALCULATE LANDING / Waiting for throw";
+      } else {
+        state.textContent = "IDLE / Waiting for “Hey Preact”";
+      }
+
+      voice.textContent = value.voice_enabled
+        ? `Microphone: ${value.voice_state}`
+        : "Microphone disabled — run with --voice";
+      heard.textContent = value.last_transcript
+        ? `Heard: “${value.last_transcript}”`
+        : "Say “Hey Preact, stop” to return to idle.";
+    }
+
+    track.addEventListener("click", () => command("/api/mode/tracking"));
+    land.addEventListener("click", () => command("/api/mode/landing"));
+    stop.addEventListener("click", () => command("/api/stop"));
+    setInterval(async () => {
+      try {
+        const value = await fetch("/api/status").then(response => response.json());
+        render(value);
+      } catch (_) {}
+    }, 200);
+    render({
+      mode: "idle",
+      tracking: false,
+      target_state: "idle",
+      landing_x_m: null,
+      voice_enabled: false,
+      voice_state: "disabled",
+      last_transcript: ""
+    });
+  </script>
+</body>
+</html>

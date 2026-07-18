@@ -2,81 +2,80 @@
 
 ## Objective
 
-Build a reliable hackathon demo that predicts where a thrown foam ball will land and communicates that prediction physically before impact.
+Build a reliable, safe voice-controlled demo that either follows a foam ball
+continuously or predicts where it will first touch the floor and points there
+before impact.
 
 ## Team
 
 - Philip: product, integration, CAD/physical rig, measurement protocol, pitch.
-- Malte: camera, computer vision, calibration, trajectory model, dashboard.
-- Michelle: Genesis firmware, output hardware, serial/Wi-Fi connection, testing and recovery.
+- Malte: camera, calibration, computer vision, trajectory model, telemetry.
+- Michelle: Genesis firmware, ToF, servo, power, serial link, recovery testing.
 
-Roles can be swapped to match actual strengths, but keep the three workstreams separate.
+Keep these workstreams parallel until the first end-to-end integration.
 
 ## Non-negotiable decisions
 
-1. The MVP uses a controlled side-on 2D/2.5D throwing plane.
-2. Local deterministic code owns the time-critical tracking and trajectory fit.
-3. Claude is used for scene commissioning, configuration suggestions, and post-throw diagnosis only.
-4. The ToF sensor is optional and must never be a dependency of the core prediction.
-5. Preferred output is a one-axis positional servo pointer.
-6. Guaranteed fallback is the Genesis Mini 0.96-inch screen plus 5×5 LED matrix.
-7. If prediction confidence is low, show “no prediction” and leave the pointer neutral.
-8. No firing, interception, catching, targeting, or weaponization features.
+1. Prove prediction first in a controlled side-on 2D/2.5D throwing plane; the
+   physical pointer is a planned two-axis pan/tilt rig for the final 3D demo.
+2. Build only the servo + ToF physical version.
+3. Treat ToF as a required release/passage trigger and confidence gate.
+4. Use the camera, not ToF, for trajectory geometry.
+5. Use local deterministic code for all time-critical tracking and prediction.
+6. Transcribe locally; exact wake commands are deterministic and Claude only
+   classifies safe paraphrases or performs one-time object commissioning.
+7. Keep the UI to two mode cards, Stop, camera image, red box, and small status
+   text.
+8. Leave the pointer neutral and send no command below the confidence threshold.
+9. Do not activate a physical webcam until Philip explicitly approves it.
+10. Work locally only. Do not push, publish, or open a PR until Philip asks.
+11. No firing, catching, striking, interception, pursuit, or weapon integration.
 
-## Confirmed event inventory
+## Required physical path
 
-From the event Discord summary supplied on 16 July 2026:
+- Axiometa Genesis Mini
+- AX22-0015 VL53L0X ToF module
+- AX22-0031 Servo Adapter
+- two AX22-0036 Single NeoPixel modules
+- two positional hobby servos, each with a horn
+- regulated external servo power
+- USB-C data cable
+- laptop camera
+- passive printed pan/tilt pointer and base
 
-- One Genesis Mini Starter Kit per attendee.
-- Team size maximum: three.
-- Fifteen Bambu Lab printers; exact models unknown.
-- PLA in black, white, grey, and green.
-- Extra Axiometa modules and experimental parts, types and quantities not guaranteed.
-- Anthropic, Modal, Linkup, and ElevenLabs credits.
-- Venue open overnight.
+The two separate physical indicators are green for TRACKING and red for
+CALCULATE LANDING. Synthetic and replay modes exist for software verification
+and a recorded judging backup.
 
-## Starter kit contents
+## Runtime contracts
 
-The official Axiometa product page lists:
-
-- Genesis Mini
-- Temperature and humidity sensor
-- 0.96-inch screen
-- LED button
-- Rotary encoder
-- 5×5 LED matrix
-- Passive buzzer
-- Light sensor
-- Remote transceiver
-- Genesis Studio access
-
-It does not list a servo adapter, servo, ToF sensor, motor power, or USB data cable.
-
-## Engineering priorities
-
-1. Recorded-video ball detection.
-2. Camera calibration and pixel-to-centimetre mapping.
-3. Landing prediction and confidence.
-4. Live camera loop.
-5. Guaranteed LED/screen output.
-6. Servo output only when hardware is confirmed.
-7. ToF integration only after the entire MVP works.
-8. Dashboard polish, Claude commissioning, pitch, and backup video.
+- World coordinates: `x` along the floor, `y` upward, both in metres.
+- Camera and ToF timestamps must share a monotonic time base in live mode.
+- A new ToF trigger clears the previous observation track.
+- Tracking mode follows the current calibrated ball position without a ToF
+  trigger.
+- Prediction output includes validity, landing x, time to impact, confidence,
+  fit diagnostics, and optional servo target.
+- Servo output requires a recent ToF trigger, a valid prediction, and sufficient
+  confidence in landing mode, or sufficient detection quality in tracking mode.
+- Stop always enters idle, neutralises the servo, and turns both mode LEDs off.
+- Firmware protocol is versioned newline-delimited JSON at 115200 baud.
 
 ## Definition of done
 
-- 8/10 throws within 20 cm.
-- Prediction at least 300 ms before impact.
-- Five consecutive demos.
-- Replay mode works without live hardware.
-- README and runbook match the implemented system.
-- No secrets committed.
+- At least 8/10 controlled throws land within 20 cm of the prediction.
+- First stable prediction is available at least 300 ms before impact.
+- Five consecutive demonstrations complete without manual recovery.
+- Stop and reset return the pointer to neutral.
+- Replay and synthetic modes run without physical hardware.
+- Telemetry is written for measured runs.
+- No secrets or personal calibration footage are committed.
 
-## Working rules
+## Local verification
 
-- Prefer simple colour segmentation over a new ML detector.
-- Timestamp real frames; do not rely only on nominal FPS.
-- Log raw observations and fitted predictions for every throw.
-- Keep interfaces small: prediction output should include target position, time to impact, confidence, and validity.
-- Never let uncertain hardware block the guaranteed fallback.
-- Keep 3D-printed parts within 170 × 170 mm and support-free until the printer model is known.
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check src tests
+```
+
+Preserve the safe synthetic default: `python -m preact` must never open a camera.
