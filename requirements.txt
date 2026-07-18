@@ -1,6 +1,10 @@
 anthropic
+fastapi
+faster-whisper
 numpy
 opencv-contrib-python
 pyserial
 python-dotenv
 scipy
+sounddevice
+uvicorn

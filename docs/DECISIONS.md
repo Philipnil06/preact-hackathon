@@ -2,42 +2,110 @@
 
 ## D-001 — Controlled 2D/2.5D throwing plane
 
-**Decision:** Use a side-on camera and constrain throws near a calibrated plane.
+**Decision:** Use a side-on camera and constrain throws near one calibrated
+plane.
 
-**Why:** A single ordinary camera cannot reliably recover unconstrained room-scale 3D motion. The controlled plane produces a credible demo within one day.
+**Why:** One ordinary camera cannot reliably recover unconstrained room-scale
+3D motion in 24 hours. A measured plane makes accuracy testable.
 
 ## D-002 — Physics-first real-time loop
 
-**Decision:** Use deterministic computer vision and a trajectory fit for the real-time prediction.
+**Decision:** Use local colour segmentation, a planar homography, and a robust
+fixed-gravity fit.
 
-**Why:** It is fast, inspectable, measurable, and robust to API latency.
+**Why:** It is fast, inspectable, deterministic, and measurable.
 
-## D-003 — Claude outside the time-critical loop
+## D-003 — Claude selects; local code measures
 
-**Decision:** Claude handles commissioning and post-throw diagnosis.
+**Decision:** Claude Sonnet 5 may select the safe demo object once through a
+strict bounding-box tool. Local pixels create the HSV profile.
 
-**Why:** This gives the model a genuine role without using an LLM for precision geometry or actuation timing.
+**Why:** Claude adds semantic commissioning without controlling geometry,
+timing, or actuation. A saved profile is the offline path.
 
-## D-004 — ToF is optional
+## D-004 — ToF is required but is not a 3D tracker
 
-**Decision:** The core MVP cannot depend on ToF.
+**Decision:** Build only the ToF + servo path. ToF creates a release/passage
+event and gates camera observations and servo commands.
 
-**Why:** The kit does not include it, event quantity is unknown, and a single-zone ToF sensor is not a reliable room-scale ball tracker.
+**Why:** The user chose the most impressive target build and accepts the event
+inventory dependency. A single-zone sensor still cannot supply the full ball
+trajectory.
 
-## D-005 — Guaranteed output before servo output
+## D-005 — Servo pointer plus two mode indicators
 
-**Decision:** Implement the starter kit's LED matrix and screen first.
+**Decision:** Keep the servo pointer as the physical result and add two separate
+AX22-0036 indicators: green for tracking and red for landing calculation.
 
-**Why:** Servo adapter, positional servo, and external power are not guaranteed.
+**Why:** The indicators make the voice-controlled state immediately legible
+without turning the demo into a dashboard.
 
-## D-006 — Private repository
+## D-006 — Minimal UI
 
-**Decision:** Start the repository as private.
+**Decision:** Provide two mode cards, matching green/red lamps, Stop, the camera
+feed, a red tracking box, and small voice/ToF/servo status text.
 
-**Why:** The project is early, contains unpublished hackathon work, and has a dual-use market narrative. Visibility can be changed later.
+**Why:** The physical pointer is the product moment. A dashboard would compete
+with it and add failure surface.
 
-## D-007 — Safe product framing
+## D-007 — Confidence-gated actuation
 
-**Decision:** Frame PREACT as sports, education, industrial safety, and robotics perception.
+**Decision:** Send no target below the threshold and clamp angles on both laptop
+and firmware.
 
-**Why:** The demo validates low-cost predictive perception, not a weapon or counter-UAS system.
+**Why:** A physically quiet “no prediction” is more credible and safer than
+pointing based on weak data.
+
+## D-008 — Safe product framing
+
+**Decision:** Frame PREACT as predictive perception for industrial safety,
+robotics, logistics, sports, and training.
+
+**Why:** The prototype validates sensing and early motion prediction, not a
+weapon, engagement system, or counter-UAS product.
+
+## D-009 — Private and local until explicit release
+
+**Decision:** Work locally and make no GitHub push or PR until Philip explicitly
+asks.
+
+**Why:** The implementation is still being tested, and the user requested local
+work only.
+
+## D-010 — Synthetic input is the safe default
+
+**Decision:** `python -m preact` starts a synthetic end-to-end demo. A numeric
+camera index must be explicit.
+
+**Why:** Tests and development must not unexpectedly activate the webcam.
+
+## D-011 — Three explicit operating modes
+
+**Decision:** Use `idle`, `tracking`, and `landing` as mutually exclusive states.
+Every transition resets stale tracks. Stop neutralises the servo and turns both
+indicators off.
+
+**Why:** An explicit state machine prevents tracking commands and landing
+predictions from competing for the same actuator.
+
+## D-012 — Local speech, deterministic safety commands
+
+**Decision:** Transcribe speech locally with faster-whisper. Handle the three
+canonical “Hey Preact” phrases locally and use Claude Sonnet 5 only to classify
+wake-phrase paraphrases with a strict four-value tool.
+
+**Why:** Canonical commands, especially Stop, remain fast and available without
+network latency. The only cloud credential is `ANTHROPIC_API_KEY`.
+
+The microphone path supports non-16-kHz multi-channel devices, resamples locally
+for Whisper, calibrates the noise floor at startup, and joins a wake-only speech
+segment to the following command for 2.5 seconds.
+
+## D-013 — One vertical plane for both pointer behaviours
+
+**Decision:** Place the servo axis in or next to the calibrated side-on plane
+and calculate the bearing to either current ball \((x,y)\) or predicted landing
+\((x,0)\).
+
+**Why:** A single rotational axis cannot point to arbitrary 3D positions, but it
+can visibly follow both targets when the ball remains in one controlled plane.
