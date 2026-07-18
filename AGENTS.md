@@ -28,8 +28,6 @@ Keep these workstreams parallel until the first end-to-end integration.
    text.
 8. Leave the pointer neutral and send no command below the confidence threshold.
 9. Do not activate a physical webcam until Philip explicitly approves it.
-10. Work locally only. Do not push, publish, or open a PR until Philip asks.
-11. No firing, catching, striking, interception, pursuit, or weapon integration.
 
 ## Required physical path
 
