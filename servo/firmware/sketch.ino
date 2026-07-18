@@ -1,15 +1,17 @@
-// Servo Control — 2x 180° servos on AX22-0031
-// Official AX22-0031 mapping: S1 → GPIO 1, S2 → GPIO 14, S3 → GPIO 41
-// Serial commands: "S1:90", "S2:45", or "S3:120"
+// Servo Control — 2x 180° servos on AX22-0031 (P1)
+// S1 → P1_IO0, S2 → P1_IO1, S3 → P1_IO2
+// Serial commands: "S1:90", "S2:45", "S3:120"
 
-#define S1_PIN 1
-#define S2_PIN 14
-#define S3_PIN 41
+#define S1_PIN P1_IO0
+#define S2_PIN P1_IO1
+#define S3_PIN P1_IO2
 
 #define SERVO_FREQ   50
 #define SERVO_MIN_US 500
-#define SERVO_MAX_US 2400
+#define SERVO_MAX_US 2500
 #define PERIOD_US    20000
+#define SERVO_BITS   12
+#define SERVO_MAX_DUTY 4095
 
 int angle1 = 90;
 int angle2 = 90;
@@ -19,13 +21,14 @@ void setServo(int pin, int angle) {
   angle = constrain(angle, 0, 180);
   int pulseUs = map(angle, 0, 180, SERVO_MIN_US, SERVO_MAX_US);
   analogWriteFrequency(pin, SERVO_FREQ);
-  analogWriteResolution(pin, 16);
-  int duty = (int)((long)pulseUs * 65535 / PERIOD_US);
+  analogWriteResolution(pin, SERVO_BITS);
+  int duty = (int)((long)pulseUs * SERVO_MAX_DUTY / PERIOD_US);
   analogWrite(pin, duty);
 }
 
 void setup() {
   Serial.begin(115200);
+  delay(500);
   pinMode(S1_PIN, OUTPUT);
   pinMode(S2_PIN, OUTPUT);
   pinMode(S3_PIN, OUTPUT);
