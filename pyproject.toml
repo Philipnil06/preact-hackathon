@@ -12,6 +12,7 @@ dependencies = [
     "anthropic>=0.57",
     "fastapi>=0.116",
     "faster-whisper>=1.2.1",
+    "httpx>=0.28",
     "numpy>=2.0",
     "opencv-contrib-python>=4.10",
     "pyserial>=3.5",
@@ -25,6 +26,7 @@ dependencies = [
 preact = "preact.__main__:main"
 preact-calibrate = "preact.calibrate_cli:main"
 preact-validate-trajectory = "preact.trajectory_validation:main"
+preact-say = "preact.voice_output:main"
 
 [project.optional-dependencies]
 dev = [
