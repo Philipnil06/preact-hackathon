@@ -220,14 +220,6 @@ prediction and servo logic as the physical path.
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — day-of setup and recovery.
 - [`docs/HACKATHON_PLAN.md`](docs/HACKATHON_PLAN.md) — 24-hour team schedule.
 - [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — laptop ↔ Genesis JSON protocol.
-- [`docs/SAFETY.md`](docs/SAFETY.md) — allowed demo scope.
-
-## Scope
-
-This repository is for benign marked-object tracking, sports and education,
-industrial-safety exploration, and robotics perception. It must not contain
-firing, interception, autonomous engagement, or weapon-control functionality.
-
 ## Primary references
 
 - [Axiometa Genesis Mini](https://www.axiometa.io/products/axiometa-genesis-mini)

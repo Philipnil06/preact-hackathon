@@ -13,11 +13,7 @@ build/
 dist/
 *.egg-info/
 tmp/
-data/raw/
-# Personal calibration images, captured throws, and session measurements stay local.
-data/blue-balloon/
-data/juggling-ball/
-data/landing-captures/
+data/
 recordings/
 logs/
 artifacts/
