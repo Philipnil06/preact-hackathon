@@ -121,3 +121,15 @@ class ServoTarget:
     time_to_impact_ms: int
     target_y_m: float | None = None
     purpose: str = "landing"
+
+
+@dataclass(frozen=True, slots=True)
+class PanTiltTarget:
+    """A two-axis camera-tracking command for the S1/S3 servo adapter."""
+
+    command_id: int
+    pan_angle_deg: float
+    tilt_angle_deg: float
+    x_px: float
+    y_px: float
+    confidence: float

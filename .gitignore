@@ -26,3 +26,10 @@ artifacts/
 .vscode/
 Thumbs.db
 .DS_Store
+
+# Local biometric commissioning data and downloaded face models.
+config/face-reference/reference-*.jpeg
+config/my-face.json
+models/*.onnx
+work/face-live-bootstrap/
+work/

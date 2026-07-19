@@ -176,10 +176,15 @@ class FasterWhisperTranscriber:
             condition_on_previous_text=False,
             initial_prompt=(
                 "Voice commands begin with Hey Preact. Expected commands: "
+                "Hey Preact, face. Hey Preact, balloon. "
+                "Hey Preact, switch to my face. Hey Preact, switch to balloon. "
                 "Hey Preact, start tracking. Hey Preact, calculate where this "
                 "will land. Hey Preact, stop."
             ),
-            hotwords="Hey Preact start tracking calculate landing stop",
+            hotwords=(
+                "Hey Preact face balloon switch to my face switch to balloon "
+                "start tracking calculate landing stop"
+            ),
             vad_filter=False,
         )
         return " ".join(segment.text.strip() for segment in segments).strip()

@@ -16,8 +16,14 @@ from preact.claude_targeting import (
 )
 from preact.detection import BallDetector, BallDetectorConfig
 from preact.engine import EngineConfig, PREACTEngine
+from preact.face_detection import FaceDetector, FaceDetectorConfig
 from preact.flight_detection import FlightBallDetector
-from preact.genesis import GenesisEmulator, GenesisSerial
+from preact.genesis import GenesisEmulator, GenesisSerial, PanTiltSerial
+from preact.pan_tilt import (
+    PanTiltCalibration,
+    PanTiltImageCalibration,
+    PanTiltPlanner,
+)
 from preact.runtime import PREACTRuntime
 from preact.servo import ServoCalibration, ServoPlanner
 from preact.session_log import SessionLogger
@@ -47,11 +53,32 @@ def main() -> None:
     parser.add_argument("--calibration", type=Path)
     parser.add_argument("--detector-profile", type=Path)
     parser.add_argument(
+        "--face-detector-profile",
+        type=Path,
+        help="commissioned face profile created from the user's reference images",
+    )
+    parser.add_argument(
         "--claude-target-lock",
         action="store_true",
         help="use one Claude vision call to select the safe demo object",
     )
     parser.add_argument("--serial-port")
+    parser.add_argument(
+        "--pan-tilt-tracking",
+        action="store_true",
+        help="drive the S1/S3 text-protocol firmware from blue-ball tracking",
+    )
+    parser.add_argument("--pan-tilt-min-deg", type=float, default=10.0)
+    parser.add_argument("--pan-tilt-max-deg", type=float, default=170.0)
+    parser.add_argument("--pan-tilt-speed-deg-s", type=float, default=200.0)
+    parser.add_argument("--pan-response-multiplier", type=float, default=1.7)
+    parser.add_argument("--pan-tilt-deadband-deg", type=float, default=1.0)
+    parser.add_argument(
+        "--pan-tilt-calibration",
+        type=Path,
+        default=Path("config/pan-tilt-mount.json"),
+        help="saved five-point mount calibration",
+    )
     parser.add_argument(
         "--emulate-genesis",
         action="store_true",
@@ -72,6 +99,12 @@ def main() -> None:
     )
     parser.add_argument("--replay-trigger-s", type=float, default=0.40)
     parser.add_argument("--log", type=Path, help="append frame telemetry as JSONL")
+    parser.add_argument(
+        "--landing-results",
+        type=Path,
+        default=Path("work/landing-results.jsonl"),
+        help="append one predicted-versus-actual result per throw",
+    )
     parser.add_argument("--camera-width", type=int, default=1280)
     parser.add_argument("--camera-height", type=int, default=720)
     parser.add_argument("--camera-fps", type=float, default=30.0)
@@ -189,8 +222,10 @@ def _build_hardware_runtime(arguments: argparse.Namespace) -> PREACTRuntime:
     )
     if source_is_camera:
         if arguments.serial_port is not None:
-            genesis: GenesisSerial | GenesisEmulator = GenesisSerial(
-                arguments.serial_port
+            genesis: GenesisSerial | PanTiltSerial | GenesisEmulator = (
+                PanTiltSerial(arguments.serial_port)
+                if arguments.pan_tilt_tracking
+                else GenesisSerial(arguments.serial_port)
             )
         elif arguments.emulate_genesis:
             genesis = GenesisEmulator()
@@ -248,26 +283,52 @@ def _build_hardware_runtime(arguments: argparse.Namespace) -> PREACTRuntime:
             require_tof_for_landing=not arguments.vision_only_landing
         ),
         landing_detector=FlightBallDetector(calibration=calibration),
+        pan_tilt_planner=(
+            PanTiltPlanner(
+                PanTiltCalibration(
+                    minimum_angle_deg=arguments.pan_tilt_min_deg,
+                    maximum_angle_deg=arguments.pan_tilt_max_deg,
+                    neutral_angle_deg=arguments.servo_neutral_deg,
+                    deadband_deg=arguments.pan_tilt_deadband_deg,
+                    maximum_speed_deg_s=arguments.pan_tilt_speed_deg_s,
+                    pan_response_multiplier=arguments.pan_response_multiplier,
+                ),
+                image_calibration=PanTiltImageCalibration.load(
+                    arguments.pan_tilt_calibration
+                ),
+                calibration_path=arguments.pan_tilt_calibration,
+            )
+            if arguments.pan_tilt_tracking
+            else None
+        ),
     )
-    return PREACTRuntime(
+    runtime = PREACTRuntime(
         engine=engine,
         source=source,
         session_logger=(
             SessionLogger(arguments.log) if arguments.log is not None else None
         ),
+        landing_results_path=arguments.landing_results,
     )
+    if arguments.face_detector_profile is not None:
+        runtime.register_tracking_detector(
+            "face",
+            FaceDetector(FaceDetectorConfig.load(arguments.face_detector_profile)),
+        )
+    return runtime
 
 
 def _build_engine(
     *,
     calibration: PlanarCalibration,
-    genesis: GenesisSerial | GenesisEmulator,
+    genesis: GenesisSerial | PanTiltSerial | GenesisEmulator,
     landing_max_x_m: float = 3.0,
     detector: BallDetector | None = None,
     servo_calibration: ServoCalibration | None = None,
     tof_gate: ToFGate | None = None,
     engine_config: EngineConfig | None = None,
     landing_detector: FlightBallDetector | None = None,
+    pan_tilt_planner: PanTiltPlanner | None = None,
 ) -> PREACTEngine:
     return PREACTEngine(
         calibration=calibration,
@@ -279,6 +340,7 @@ def _build_engine(
             or ServoCalibration(landing_max_x_m=landing_max_x_m)
         ),
         genesis=genesis,
+        pan_tilt_planner=pan_tilt_planner,
         landing_detector=landing_detector,
         config=engine_config,
     )

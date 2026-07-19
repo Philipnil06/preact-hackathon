@@ -91,8 +91,16 @@ Voice is opt-in and does not start unless `--voice` is present:
 The three canonical phrases are:
 
 - “Hey Preact, start tracking”
+- “Hey Preact, switch to my face”
+- “Hey Preact, switch to balloon”
 - “Hey Preact, calculate where this will land”
 - “Hey Preact, stop”
+
+Tracking requires a selected, commissioned target. Select the balloon or face
+before saying “Hey Preact, start tracking”. Face tracking remains unavailable
+until a generated profile is supplied with
+`--face-detector-profile config/my-face.json`; its live bootstrap then adapts
+the saved reference to the current lighting.
 
 On the development laptop the verified raw microphone path is device 16,
 channel 1 at 48 kHz. PREACT resamples it to 16 kHz for Whisper and calibrates a
@@ -191,6 +199,24 @@ the pointer moves over a compact printed landing scale.
 
 Replace the saved colour profile with `--claude-target-lock` to perform one
 Claude vision call on the first frame. Do not use both flags together.
+
+### Blue-balloon pan/tilt tracking
+
+With the text-protocol firmware from `servo/firmware/sketch.ino`, S1 is the
+horizontal axis and S3 is the vertical axis. Close the standalone Web Serial
+mouse panel before starting, because only one process can own the COM port.
+
+```powershell
+.\.venv\Scripts\python.exe -m preact `
+  --host 127.0.0.1 --port 8781 `
+  --source 0 --camera-width 640 --camera-height 480 --camera-fps 30 `
+  --calibration config\camera-calibration.json `
+  --detector-profile config\blue-balloon.json `
+  --serial-port COM3 --pan-tilt-tracking --vision-only-landing
+```
+
+Open `http://127.0.0.1:8781/` and press **Start tracking**. The controller
+returns both axes to 90 degrees if the target is lost.
 
 ## Deterministic replay
 

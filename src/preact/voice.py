@@ -19,6 +19,8 @@ class VoiceCommand(StrEnum):
     TRACKING = "tracking"
     LANDING = "landing"
     STOP = "stop"
+    SWITCH_FACE = "switch_face"
+    SWITCH_BALLOON = "switch_balloon"
     IGNORE = "ignore"
 
 
@@ -99,8 +101,11 @@ class ClaudeVoiceInterpreter:
                 system=(
                     "Interpret voice commands for a benign foam-ball demo. "
                     "Only the wake phrase 'Hey Preact' grants command intent. "
-                    "Choose tracking, landing, stop, or ignore. Tracking means "
-                    "follow the visible ball continuously. Landing means "
+                    "Choose tracking, landing, stop, switch_face, "
+                    "switch_balloon, or ignore. Tracking means follow the "
+                    "currently selected target continuously. switch_face "
+                    "selects the user's commissioned face. switch_balloon "
+                    "selects the commissioned balloon. Landing means "
                     "calculate where a thrown ball will land. Stop means enter "
                     "idle, neutralize the servo, and turn both mode LEDs off. "
                     "Never infer any other action."
@@ -177,6 +182,9 @@ def interpret_exact_command(transcript: str) -> VoiceCommand | None:
         "go idle",
     }:
         return VoiceCommand.STOP
+    target_switch = _target_switch_command(command)
+    if target_switch is not None:
+        return target_switch
     return None
 
 
@@ -200,6 +208,41 @@ def interpret_recoverable_command(transcript: str) -> VoiceCommand | None:
         return VoiceCommand.LANDING
     if value in {"stop", "stop tracking", "stop calculating", "go idle"}:
         return VoiceCommand.STOP
+    target_switch = _target_switch_command(value)
+    if target_switch is not None:
+        return target_switch
+    return None
+
+
+def _target_switch_command(value: str) -> VoiceCommand | None:
+    if value in {
+        "face",
+        "my face",
+        "switch to my face",
+        "switch to face",
+        "switch to my phase",
+        "switch my face",
+        "track my face",
+        "track face",
+        "select my face",
+    }:
+        return VoiceCommand.SWITCH_FACE
+    if value in {
+        "balloon",
+        "ballon",
+        "baloon",
+        "the balloon",
+        "switch to balloon",
+        "switch to the balloon",
+        "switch to ballon",
+        "switch to baloon",
+        "switch balloon",
+        "track the balloon",
+        "track balloon",
+        "select the balloon",
+        "select balloon",
+    }:
+        return VoiceCommand.SWITCH_BALLOON
     return None
 
 
@@ -213,7 +256,14 @@ def _voice_tool() -> dict[str, Any]:
             "properties": {
                 "command": {
                     "type": "string",
-                    "enum": ["tracking", "landing", "stop", "ignore"],
+                    "enum": [
+                        "tracking",
+                        "landing",
+                        "stop",
+                        "switch_face",
+                        "switch_balloon",
+                        "ignore",
+                    ],
                 },
                 "reason": {"type": "string"},
             },

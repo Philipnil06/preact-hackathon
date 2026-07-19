@@ -40,6 +40,7 @@
     }
     button.track.active { background: #123c28; border-color: #2de386; }
     button.land.active { background: #4a1819; border-color: #ff5959; }
+    button.calibrate.active { background: #27304a; border-color: #7ba7ff; }
     button.stop { color: #bbc1cb; }
     .modes {
       display: grid;
@@ -88,6 +89,7 @@
       box-shadow: 0 0 18px #ff3d42;
     }
     .camera {
+      position: relative;
       overflow: hidden;
       border: 1px solid #2a303a;
       border-radius: 18px;
@@ -103,6 +105,92 @@
       transition: opacity .2s;
     }
     .camera.idle img { opacity: .32; }
+    #calibration-marker {
+      position: absolute;
+      z-index: 3;
+      display: none;
+      width: 36px;
+      height: 36px;
+      border: 3px solid #62a3ff;
+      border-radius: 50%;
+      box-shadow: 0 0 22px #287dff;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    #calibration-marker::before,
+    #calibration-marker::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      background: #d9e7ff;
+      transform: translate(-50%, -50%);
+    }
+    #calibration-marker::before { width: 50px; height: 2px; }
+    #calibration-marker::after { width: 2px; height: 50px; }
+    .calibration-panel {
+      display: none;
+      grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr);
+      gap: 14px;
+      margin-bottom: 12px;
+      padding: 16px;
+      border: 1px solid #344867;
+      border-radius: 16px;
+      background: #101722;
+    }
+    .calibration-panel.open { display: grid; }
+    .calibration-panel h2 { margin: 0 0 5px; font-size: 18px; }
+    .calibration-panel p { margin: 0 0 12px; color: #9eacbd; font-size: 13px; }
+    .point-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .point-grid button { border-radius: 10px; padding: 10px 8px; }
+    .point-grid button.active { border-color: #6aa2ff; background: #243b61; }
+    .point-grid button.saved { box-shadow: inset 0 0 0 1px #2bd47f; }
+    .point-grid [data-cal-point="top_left"] { grid-column: 1; grid-row: 1; }
+    .point-grid [data-cal-point="top_right"] { grid-column: 3; grid-row: 1; }
+    .point-grid [data-cal-point="center"] { grid-column: 2; grid-row: 2; }
+    .point-grid [data-cal-point="bottom_left"] { grid-column: 1; grid-row: 3; }
+    .point-grid [data-cal-point="bottom_right"] { grid-column: 3; grid-row: 3; }
+    .jog-panel {
+      display: grid;
+      align-content: start;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #29384d;
+      border-radius: 13px;
+      background: #0b1119;
+    }
+    .angle-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .angle-readout label { color: #aebccd; font-size: 12px; }
+    .angle-readout input {
+      width: 100%;
+      margin-top: 4px;
+      padding: 9px 10px;
+      border: 1px solid #40516a;
+      border-radius: 9px;
+      background: #111a25;
+      color: #fff;
+      font: inherit;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    #move-calibration { border-color: #6aa2ff; }
+    .jog-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+    }
+    .jog-grid button { border-radius: 10px; padding: 10px 5px; }
+    .jog-grid .tilt-up { grid-column: 2; }
+    .jog-grid .pan-left { grid-column: 1; grid-row: 2; }
+    .jog-grid .pan-right { grid-column: 3; grid-row: 2; }
+    .jog-grid .tilt-down { grid-column: 2; grid-row: 3; }
+    .cal-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 5px; }
+    #save-calibration { border-color: #2bd47f; }
+    #calibration-progress { color: #b9c8da; font-size: 12px; }
     footer {
       min-height: 42px;
       display: flex;
@@ -118,6 +206,7 @@
     @media (max-width: 760px) {
       header { align-items: start; flex-direction: column; }
       .modes { grid-template-columns: 1fr; }
+      .calibration-panel { grid-template-columns: 1fr; }
       footer { flex-direction: column; }
       #heard { text-align: left; }
     }
@@ -134,6 +223,7 @@
       <div class="controls">
         <button id="track" class="track">Start tracking</button>
         <button id="land" class="land">Calculate landing</button>
+        <button id="calibrate" class="calibrate">Calibrate mount</button>
         <button id="stop" class="stop">Stop</button>
       </div>
     </header>
@@ -155,8 +245,47 @@
       </div>
     </section>
 
+    <section id="calibration-panel" class="calibration-panel" aria-label="Mount calibration">
+      <div>
+        <h2>Five-point mount calibration</h2>
+        <p>Move the blue balloon onto the shown crosshair. Select that point, jog S1/S3 until the pointer hits the balloon, then save.</p>
+        <div class="point-grid">
+          <button data-cal-point="top_left">Top left</button>
+          <span></span>
+          <button data-cal-point="top_right">Top right</button>
+          <button data-cal-point="center" class="center-point">Center</button>
+          <button data-cal-point="bottom_left">Bottom left</button>
+          <span></span>
+          <button data-cal-point="bottom_right">Bottom right</button>
+        </div>
+      </div>
+      <div class="jog-panel">
+        <div class="angle-readout">
+          <label>S1 angle
+            <input id="cal-pan" type="number" min="1" max="180" step="1" value="90">
+          </label>
+          <label>S3 angle
+            <input id="cal-tilt" type="number" min="1" max="180" step="1" value="90">
+          </label>
+        </div>
+        <button id="move-calibration">Move servos</button>
+        <div class="jog-grid">
+          <button class="tilt-up" data-pan-delta="0" data-tilt-delta="1">S3 +1°</button>
+          <button class="pan-left" data-pan-delta="-1" data-tilt-delta="0">S1 −1°</button>
+          <button class="pan-right" data-pan-delta="1" data-tilt-delta="0">S1 +1°</button>
+          <button class="tilt-down" data-pan-delta="0" data-tilt-delta="-1">S3 −1°</button>
+        </div>
+        <span id="calibration-progress">0 / 5 points saved</span>
+        <div class="cal-actions">
+          <button id="save-calibration">Save point</button>
+          <button id="finish-calibration">Finish</button>
+        </div>
+      </div>
+    </section>
+
     <section id="camera" class="camera idle">
       <img id="feed" src="/video" alt="PREACT camera tracking view">
+      <div id="calibration-marker" aria-hidden="true"></div>
     </section>
     <footer>
       <span id="state">IDLE / Waiting for “Hey Preact”</span>
@@ -168,6 +297,7 @@
     const track = document.querySelector("#track");
     const land = document.querySelector("#land");
     const stop = document.querySelector("#stop");
+    const calibrate = document.querySelector("#calibrate");
     const feed = document.querySelector("#feed");
     const camera = document.querySelector("#camera");
     const trackingMode = document.querySelector("#tracking-mode");
@@ -175,6 +305,15 @@
     const state = document.querySelector("#state");
     const heard = document.querySelector("#heard");
     const voice = document.querySelector("#voice");
+    const calibrationPanel = document.querySelector("#calibration-panel");
+    const calibrationMarker = document.querySelector("#calibration-marker");
+    const calPan = document.querySelector("#cal-pan");
+    const calTilt = document.querySelector("#cal-tilt");
+    const calibrationProgress = document.querySelector("#calibration-progress");
+    const calibrationPointButtons = [...document.querySelectorAll("[data-cal-point]")];
+    const jogButtons = [...document.querySelectorAll("[data-pan-delta]")];
+    let calibrationValue = null;
+    let calibrationOpen = false;
     let feedRetryTimer = null;
     let feedRetrySequence = 0;
 
@@ -201,6 +340,58 @@
       render(value);
     }
 
+    async function calibrationCommand(endpoint, body = null) {
+      const options = { method: "POST" };
+      if (body !== null) {
+        options.headers = { "Content-Type": "application/json" };
+        options.body = JSON.stringify(body);
+      }
+      const response = await fetch(endpoint, options);
+      if (!response.ok) throw new Error(await response.text());
+      calibrationValue = await response.json();
+      renderCalibration(calibrationValue);
+    }
+
+    function positionCalibrationMarker() {
+      const active = calibrationValue?.active_point;
+      const position = calibrationValue?.positions?.[active];
+      if (!calibrationOpen || !position || !feed.naturalWidth || !feed.naturalHeight) {
+        calibrationMarker.style.display = "none";
+        return;
+      }
+      const width = camera.clientWidth;
+      const height = camera.clientHeight;
+      const imageAspect = feed.naturalWidth / feed.naturalHeight;
+      const containerAspect = width / height;
+      let displayWidth = width;
+      let displayHeight = height;
+      let offsetX = 0;
+      let offsetY = 0;
+      if (imageAspect > containerAspect) {
+        displayHeight = width / imageAspect;
+        offsetY = (height - displayHeight) / 2;
+      } else {
+        displayWidth = height * imageAspect;
+        offsetX = (width - displayWidth) / 2;
+      }
+      calibrationMarker.style.left = `${offsetX + position.x * displayWidth}px`;
+      calibrationMarker.style.top = `${offsetY + position.y * displayHeight}px`;
+      calibrationMarker.style.display = "block";
+    }
+
+    function renderCalibration(value) {
+      if (!value?.available) return;
+      calPan.value = Math.round(value.pan_deg);
+      calTilt.value = Math.round(value.tilt_deg);
+      calibrationProgress.textContent = `${value.saved_count} / 5 points saved${value.complete ? " · calibration active" : ""}`;
+      calibrationPointButtons.forEach(button => {
+        const point = button.dataset.calPoint;
+        button.classList.toggle("active", point === value.active_point);
+        button.classList.toggle("saved", Boolean(value.points?.[point]));
+      });
+      positionCalibrationMarker();
+    }
+
     function render(value) {
       const mode = value.mode || "idle";
       const isTracking = mode === "tracking";
@@ -220,14 +411,21 @@
         } else if (targetState === "coasting") {
           state.textContent = "TRACKING / Predicting through brief target loss";
         } else if (targetState === "locked") {
-          state.textContent = "TRACKING / Target identity locked";
+          const angles = value.pan_angle_deg !== null && value.tilt_angle_deg !== null
+            ? ` / S1 ${value.pan_angle_deg.toFixed(0)}Â° Â· S3 ${value.tilt_angle_deg.toFixed(0)}Â°`
+            : "";
+          state.textContent = `TRACKING / Blue balloon locked${angles}`;
         } else {
           state.textContent = "TRACKING / Searching for target";
         }
       } else if (isLanding) {
-        state.textContent = value.landing_x_m !== null
-          ? `CALCULATE LANDING / ${value.landing_x_m.toFixed(2)} m`
-          : "CALCULATE LANDING / Waiting for throw";
+        if (value.landing_x_m !== null && value.actual_landing_x_m !== null) {
+          state.textContent = `CALCULATE LANDING / Predicted ${value.landing_x_m.toFixed(2)} m · Actual ${value.actual_landing_x_m.toFixed(2)} m · Error ${value.landing_error_cm.toFixed(0)} cm`;
+        } else if (value.landing_x_m !== null) {
+          state.textContent = `CALCULATE LANDING / Predicted ${value.landing_x_m.toFixed(2)} m · measuring ball landing`;
+        } else {
+          state.textContent = "CALCULATE LANDING / Waiting for ball throw";
+        }
       } else {
         state.textContent = "IDLE / Waiting for “Hey Preact”";
       }
@@ -243,6 +441,53 @@
     track.addEventListener("click", () => command("/api/mode/tracking"));
     land.addEventListener("click", () => command("/api/mode/landing"));
     stop.addEventListener("click", () => command("/api/stop"));
+    calibrate.addEventListener("click", async () => {
+      calibrationOpen = !calibrationOpen;
+      calibrate.classList.toggle("active", calibrationOpen);
+      calibrationPanel.classList.toggle("open", calibrationOpen);
+      if (calibrationOpen) {
+        calibrationValue = await fetch("/api/calibration").then(response => response.json());
+        renderCalibration(calibrationValue);
+      } else {
+        await calibrationCommand("/api/calibration/finish");
+        calibrationMarker.style.display = "none";
+      }
+    });
+    calibrationPointButtons.forEach(button => {
+      button.addEventListener("click", () => calibrationCommand(
+        `/api/calibration/start/${button.dataset.calPoint}`
+      ));
+    });
+    jogButtons.forEach(button => {
+      button.addEventListener("click", () => calibrationCommand(
+        "/api/calibration/adjust",
+        {
+          pan_delta_deg: Number(button.dataset.panDelta),
+          tilt_delta_deg: Number(button.dataset.tiltDelta)
+        }
+      ));
+    });
+    document.querySelector("#move-calibration").addEventListener("click", () => {
+      const pan = Number(calPan.value);
+      const tilt = Number(calTilt.value);
+      if (!Number.isFinite(pan) || !Number.isFinite(tilt) || pan < 1 || pan > 180 || tilt < 1 || tilt > 180) {
+        calibrationProgress.textContent = "Enter S1 and S3 angles between 1° and 180°.";
+        return;
+      }
+      calibrationCommand("/api/calibration/angles", { pan_deg: pan, tilt_deg: tilt });
+    });
+    document.querySelector("#save-calibration").addEventListener("click", () => {
+      calibrationCommand("/api/calibration/save");
+    });
+    document.querySelector("#finish-calibration").addEventListener("click", async () => {
+      await calibrationCommand("/api/calibration/finish");
+      calibrationOpen = false;
+      calibrate.classList.remove("active");
+      calibrationPanel.classList.remove("open");
+      calibrationMarker.style.display = "none";
+    });
+    window.addEventListener("resize", positionCalibrationMarker);
+    feed.addEventListener("load", positionCalibrationMarker);
     setInterval(async () => {
       try {
         const value = await fetch("/api/status").then(response => response.json());
@@ -254,6 +499,10 @@
       tracking: false,
       target_state: "idle",
       landing_x_m: null,
+      actual_landing_x_m: null,
+      landing_error_cm: null,
+      pan_angle_deg: null,
+      tilt_angle_deg: null,
       voice_enabled: false,
       voice_state: "disabled",
       last_transcript: ""

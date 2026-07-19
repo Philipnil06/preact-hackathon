@@ -20,18 +20,22 @@ int angle3 = 90;
 void setServo(int pin, int angle) {
   angle = constrain(angle, 0, 180);
   int pulseUs = map(angle, 0, 180, SERVO_MIN_US, SERVO_MAX_US);
-  analogWriteFrequency(pin, SERVO_FREQ);
-  analogWriteResolution(pin, SERVO_BITS);
   int duty = (int)((long)pulseUs * SERVO_MAX_DUTY / PERIOD_US);
   analogWrite(pin, duty);
+}
+
+void configureServo(int pin) {
+  pinMode(pin, OUTPUT);
+  analogWriteFrequency(pin, SERVO_FREQ);
+  analogWriteResolution(pin, SERVO_BITS);
 }
 
 void setup() {
   Serial.begin(115200);
   delay(500);
-  pinMode(S1_PIN, OUTPUT);
-  pinMode(S2_PIN, OUTPUT);
-  pinMode(S3_PIN, OUTPUT);
+  configureServo(S1_PIN);
+  configureServo(S2_PIN);
+  configureServo(S3_PIN);
   setServo(S1_PIN, angle1);
   setServo(S2_PIN, angle2);
   setServo(S3_PIN, angle3);

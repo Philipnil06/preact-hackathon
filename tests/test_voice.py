@@ -51,6 +51,27 @@ def test_three_canonical_wake_commands_are_local_and_immediate() -> None:
         is VoiceCommand.LANDING
     )
     assert interpret_exact_command("Hey Preact, stop.") is VoiceCommand.STOP
+    assert (
+        interpret_exact_command("Hey Preact, switch to my face")
+        is VoiceCommand.SWITCH_FACE
+    )
+    assert (
+        interpret_exact_command("Hey Preact, switch to balloon")
+        is VoiceCommand.SWITCH_BALLOON
+    )
+    assert (
+        interpret_exact_command("Hey Preact, switch to ballon")
+        is VoiceCommand.SWITCH_BALLOON
+    )
+    assert (
+        interpret_exact_command("Hey Preact, switch to my phase")
+        is VoiceCommand.SWITCH_FACE
+    )
+    assert interpret_exact_command("Hey Preact, face") is VoiceCommand.SWITCH_FACE
+    assert (
+        interpret_exact_command("Hey Preact, balloon")
+        is VoiceCommand.SWITCH_BALLOON
+    )
     assert contains_wake_phrase("HEY PRE ACT start tracking")
 
 
@@ -162,6 +183,21 @@ def test_voice_service_stitches_wake_phrase_and_stop_segments() -> None:
     assert decisions == [first, second]
 
 
+def test_voice_service_stitches_wake_phrase_and_target_switch() -> None:
+    decisions = []
+    service = MicrophoneVoiceService(
+        interpreter=ClaudeVoiceInterpreter(client=None),
+        on_decision=decisions.append,
+    )
+
+    first = service.process_transcript("Hey Preact")
+    second = service.process_transcript("Switch to my face")
+
+    assert first.command is VoiceCommand.IGNORE
+    assert second.command is VoiceCommand.SWITCH_FACE
+    assert second.transcript == "Hey Preact Switch to my face"
+
+
 def test_specific_command_is_recovered_when_whisper_clips_wake_phrase() -> None:
     decisions = []
     service = MicrophoneVoiceService(
@@ -174,6 +210,10 @@ def test_specific_command_is_recovered_when_whisper_clips_wake_phrase() -> None:
     assert decision.command is VoiceCommand.LANDING
     assert decision.source == "local-asr-recovery"
     assert interpret_recoverable_command("please calculate something") is None
+    assert (
+        interpret_recoverable_command("switch to my face")
+        is VoiceCommand.SWITCH_FACE
+    )
 
 
 def test_inflected_landing_command_with_wake_phrase_is_canonical() -> None:

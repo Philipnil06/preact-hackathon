@@ -35,12 +35,19 @@ class SessionLogger:
         fit = asdict(prediction.fit) if prediction.fit is not None else None
         detection = asdict(snapshot.detection) if snapshot.detection is not None else None
         servo = asdict(snapshot.servo_target) if snapshot.servo_target is not None else None
+        pan_tilt = (
+            asdict(snapshot.pan_tilt_target)
+            if snapshot.pan_tilt_target is not None
+            else None
+        )
         with self._lock:
             self._write(
                 {
                     "event": "frame",
                     "session_id": self._session_id,
                     "mode": snapshot.mode.value,
+                    "landing_track_id": snapshot.landing_track_id,
+                    "landing_locked": snapshot.landing_locked,
                     "timestamp_s": snapshot.timestamp_s,
                     "detection": detection,
                     "detector_state": snapshot.detector_state,
@@ -63,6 +70,7 @@ class SessionLogger:
                         "fit": fit,
                     },
                     "servo_target": servo,
+                    "pan_tilt_target": pan_tilt,
                 }
             )
 

@@ -162,7 +162,12 @@ class FlightBallDetector:
             y_px = float(moments["m01"] / moments["m00"])
             if self.calibration is not None:
                 _, world_y = self.calibration.pixel_to_world(x_px, y_px)
-                if world_y < self.config.minimum_height_above_floor_m:
+                minimum_height = (
+                    -0.12
+                    if self._last_detection is not None
+                    else self.config.minimum_height_above_floor_m
+                )
+                if world_y < minimum_height:
                     continue
             fill = area / max(float(width * height), 1.0)
             size_score = min(1.0, area / 70.0)

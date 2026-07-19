@@ -28,6 +28,9 @@ async def _exercise_minimal_web_ui() -> None:
             assert "PREACT" in page.text
             assert "Start tracking" in page.text
             assert "Calculate landing" in page.text
+            assert "Calibrate mount" in page.text
+            assert "Five-point mount calibration" in page.text
+            assert "Move servos" in page.text
             assert "Stop" in page.text
             assert 'src="/video"' in page.text
             assert 'feed.addEventListener("error"' in page.text
@@ -69,6 +72,9 @@ async def _exercise_minimal_web_ui() -> None:
             assert not runtime.engine.genesis.tracking_led_on
             assert not runtime.engine.genesis.landing_led_on
 
+            selected = await client.post("/api/tracking-target/balloon")
+            assert selected.json()["tracking_target"] == "balloon"
+            assert selected.json()["tracking_target_ready"] is True
             tracking = await client.post("/api/mode/tracking")
             assert tracking.status_code == 200
             assert tracking.json()["mode"] == "tracking"
