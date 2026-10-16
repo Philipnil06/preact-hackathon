@@ -1108,6 +1108,7 @@ def draw_tracking_box(
     detection: Detection | None,
     *,
     state: str = "searching",
+    fixed_size: bool = False,
 ) -> np.ndarray:
     output = frame_bgr.copy()
     if detection is None:
@@ -1127,7 +1128,19 @@ def draw_tracking_box(
         )
         return output
 
-    x0, y0, x1, y1 = detection_box(detection, output.shape)
+    if fixed_size:
+        height, width = output.shape[:2]
+        half_size = max(34, min(width, height) // 8)
+        center_x = int(round(detection.x_px))
+        center_y = int(round(detection.y_px))
+        x0, y0 = center_x - half_size, center_y - half_size
+        x1, y1 = center_x + half_size, center_y + half_size
+        x0 = max(0, x0)
+        y0 = max(0, y0)
+        x1 = min(width - 1, x1)
+        y1 = min(height - 1, y1)
+    else:
+        x0, y0, x1, y1 = detection_box(detection, output.shape)
     coasting = state == "coasting"
     colour = (0, 210, 255) if coasting else (0, 0, 255)
     label = (

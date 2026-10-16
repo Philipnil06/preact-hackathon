@@ -231,5 +231,24 @@ def test_runtime_jogs_and_saves_a_mount_calibration_point(tmp_path: Path) -> Non
         assert path.exists()
         assert runtime.engine.genesis.pan_angle_deg == 121.0
         assert runtime.engine.genesis.tilt_angle_deg == 64.0
+
+        for name in ("top_left", "top_right", "bottom_left", "bottom_right"):
+            runtime.start_pan_tilt_calibration(name)
+            runtime.save_pan_tilt_calibration_point()
+        before_shift = runtime.engine.pan_tilt_planner.calibration_points
+        shifted = runtime.shift_pan_tilt_calibration(
+            pan_delta_deg=1.0,
+            tilt_delta_deg=-1.0,
+        )
+        assert shifted["complete"] is True
+        for name, angles in before_shift.items():
+            assert shifted["points"][name]["pan_deg"] == angles[0] + 1.0
+            assert shifted["points"][name]["tilt_deg"] == angles[1] - 1.0
+
+        reset = runtime.reset_pan_tilt_calibration()
+        assert reset["saved_count"] == 0
+        assert reset["complete"] is False
+        assert reset["active_point"] is None
+        assert PanTiltImageCalibration.load(path).points == {}
     finally:
         runtime.close()

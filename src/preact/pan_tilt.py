@@ -190,6 +190,23 @@ class PanTiltPlanner:
         if self.calibration_path is not None:
             self.image_calibration.save(self.calibration_path)
 
+    def clear_calibration(self) -> None:
+        self.image_calibration = PanTiltImageCalibration()
+        if self.calibration_path is not None:
+            self.image_calibration.save(self.calibration_path)
+
+    def shift_calibration(self, *, pan_delta_deg: float, tilt_delta_deg: float) -> None:
+        shifted_points = {
+            name: (
+                float(np.clip(angles[0] + pan_delta_deg, 0.0, 180.0)),
+                float(np.clip(angles[1] + tilt_delta_deg, 0.0, 180.0)),
+            )
+            for name, angles in self.image_calibration.points.items()
+        }
+        self.image_calibration = PanTiltImageCalibration(shifted_points)
+        if self.calibration_path is not None:
+            self.image_calibration.save(self.calibration_path)
+
     def target_for_detection(
         self,
         detection: Detection,

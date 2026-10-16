@@ -27,10 +27,13 @@ async def _exercise_minimal_web_ui() -> None:
             assert page.status_code == 200
             assert "PREACT" in page.text
             assert "Start tracking" in page.text
+            assert 'id="target-face"' in page.text
+            assert 'id="target-balloon"' in page.text
             assert "Calculate landing" in page.text
             assert "Calibrate mount" in page.text
             assert "Five-point mount calibration" in page.text
             assert "Move servos" in page.text
+            assert "Track face + fine-tune" in page.text
             assert "Stop" in page.text
             assert 'src="/video"' in page.text
             assert 'feed.addEventListener("error"' in page.text
@@ -75,6 +78,9 @@ async def _exercise_minimal_web_ui() -> None:
             selected = await client.post("/api/tracking-target/balloon")
             assert selected.json()["tracking_target"] == "balloon"
             assert selected.json()["tracking_target_ready"] is True
+            selected_status = (await client.get("/api/status")).json()
+            assert selected_status["tracking_target"] == "balloon"
+            assert selected_status["tracking_target_ready"] is True
             tracking = await client.post("/api/mode/tracking")
             assert tracking.status_code == 200
             assert tracking.json()["mode"] == "tracking"

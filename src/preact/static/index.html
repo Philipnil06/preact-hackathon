@@ -42,6 +42,21 @@
     button.land.active { background: #4a1819; border-color: #ff5959; }
     button.calibrate.active { background: #27304a; border-color: #7ba7ff; }
     button.stop { color: #bbc1cb; }
+    .target-selector {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding: 10px 14px;
+      border: 1px solid #282e38;
+      border-radius: 14px;
+      background: #11151b;
+    }
+    .target-selector strong { font-size: 13px; }
+    .target-buttons { display: flex; gap: 8px; }
+    .target-option { padding: 7px 15px; }
+    .target-option.active { background: #243b61; border-color: #6aa2ff; }
+    #target-status { margin-left: auto; color: #9199a8; font-size: 12px; }
     .modes {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -189,6 +204,15 @@
     .jog-grid .pan-right { grid-column: 3; grid-row: 2; }
     .jog-grid .tilt-down { grid-column: 2; grid-row: 3; }
     .cal-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 5px; }
+    .live-fine-tune {
+      display: grid;
+      gap: 8px;
+      margin-top: 7px;
+      padding-top: 12px;
+      border-top: 1px solid #29384d;
+    }
+    .live-fine-tune small { color: #9eacbd; line-height: 1.35; }
+    #live-face-calibration.active { background: #243b61; border-color: #6aa2ff; }
     #save-calibration { border-color: #2bd47f; }
     #calibration-progress { color: #b9c8da; font-size: 12px; }
     footer {
@@ -206,6 +230,8 @@
     @media (max-width: 760px) {
       header { align-items: start; flex-direction: column; }
       .modes { grid-template-columns: 1fr; }
+      .target-selector { align-items: flex-start; flex-direction: column; }
+      #target-status { margin-left: 0; }
       .calibration-panel { grid-template-columns: 1fr; }
       footer { flex-direction: column; }
       #heard { text-align: left; }
@@ -227,6 +253,15 @@
         <button id="stop" class="stop">Stop</button>
       </div>
     </header>
+
+    <section class="target-selector" aria-label="Tracking target">
+      <strong>Tracking target</strong>
+      <div class="target-buttons">
+        <button id="target-face" class="target-option" type="button">Face</button>
+        <button id="target-balloon" class="target-option" type="button">Balloon</button>
+      </div>
+      <span id="target-status">Choose Face or Balloon before tracking</span>
+    </section>
 
     <section class="modes" aria-label="Operating modes">
       <div id="tracking-mode" class="mode tracking">
@@ -280,6 +315,16 @@
           <button id="save-calibration">Save point</button>
           <button id="finish-calibration">Finish</button>
         </div>
+        <div class="live-fine-tune">
+          <button id="live-face-calibration">Track face + fine-tune</button>
+          <small>After saving all 5 points, adjust the complete mount map live while Face tracking runs.</small>
+          <div class="jog-grid">
+            <button class="tilt-up" data-live-pan-delta="0" data-live-tilt-delta="1">S3 +1°</button>
+            <button class="pan-left" data-live-pan-delta="-1" data-live-tilt-delta="0">S1 −1°</button>
+            <button class="pan-right" data-live-pan-delta="1" data-live-tilt-delta="0">S1 +1°</button>
+            <button class="tilt-down" data-live-pan-delta="0" data-live-tilt-delta="-1">S3 −1°</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -298,6 +343,9 @@
     const land = document.querySelector("#land");
     const stop = document.querySelector("#stop");
     const calibrate = document.querySelector("#calibrate");
+    const targetFace = document.querySelector("#target-face");
+    const targetBalloon = document.querySelector("#target-balloon");
+    const targetStatus = document.querySelector("#target-status");
     const feed = document.querySelector("#feed");
     const camera = document.querySelector("#camera");
     const trackingMode = document.querySelector("#tracking-mode");
@@ -310,8 +358,10 @@
     const calPan = document.querySelector("#cal-pan");
     const calTilt = document.querySelector("#cal-tilt");
     const calibrationProgress = document.querySelector("#calibration-progress");
+    const liveFaceCalibration = document.querySelector("#live-face-calibration");
     const calibrationPointButtons = [...document.querySelectorAll("[data-cal-point]")];
     const jogButtons = [...document.querySelectorAll("[data-pan-delta]")];
+    const liveFineTuneButtons = [...document.querySelectorAll("[data-live-pan-delta]")];
     let calibrationValue = null;
     let calibrationOpen = false;
     let feedRetryTimer = null;
@@ -337,6 +387,16 @@
     async function command(endpoint) {
       const response = await fetch(endpoint, { method: "POST" });
       const value = await response.json();
+      render(value);
+    }
+
+    async function selectTrackingTarget(target) {
+      const response = await fetch(`/api/tracking-target/${target}`, { method: "POST" });
+      const value = await response.json();
+      if (!response.ok) {
+        targetStatus.textContent = value.detail || "Could not select tracking target";
+        return;
+      }
       render(value);
     }
 
@@ -401,6 +461,27 @@
       trackingMode.classList.toggle("active", isTracking);
       landingMode.classList.toggle("active", isLanding);
       camera.classList.toggle("idle", mode === "idle");
+      const trackingTarget = value.tracking_target || null;
+      const targetName = trackingTarget === "face"
+        ? "Face"
+        : trackingTarget === "balloon" ? "Balloon" : "Target";
+      targetFace.classList.toggle("active", trackingTarget === "face");
+      targetBalloon.classList.toggle("active", trackingTarget === "balloon");
+      targetStatus.textContent = trackingTarget
+        ? `${targetName} selected${value.tracking_target_ready ? "" : " - reference not ready"}`
+        : "Choose Face or Balloon before tracking";
+      const profileState = value.profile_capture_state;
+      const profileCount = value.profile_capture_count || 0;
+      const profileRequired = value.profile_capture_required || 0;
+      if (trackingTarget === "face" && profileState === "capturing_back_head") {
+        targetStatus.textContent = `Saving back-of-head references: ${profileCount} / ${profileRequired}`;
+      } else if (trackingTarget === "face" && profileState === "complete") {
+        targetStatus.textContent = `Your live appearance profile is ready: ${profileCount} views saved locally`;
+      }
+      liveFaceCalibration.classList.toggle(
+        "active",
+        isTracking && trackingTarget === "face"
+      );
 
       if (isTracking) {
         const targetState = value.target_state || "searching";
@@ -412,9 +493,11 @@
           state.textContent = "TRACKING / Predicting through brief target loss";
         } else if (targetState === "locked") {
           const angles = value.pan_angle_deg !== null && value.tilt_angle_deg !== null
-            ? ` / S1 ${value.pan_angle_deg.toFixed(0)}Â° Â· S3 ${value.tilt_angle_deg.toFixed(0)}Â°`
+            ? ` / S1 ${value.pan_angle_deg.toFixed(0)}° · S3 ${value.tilt_angle_deg.toFixed(0)}°`
             : "";
-          state.textContent = `TRACKING / Blue balloon locked${angles}`;
+          state.textContent = trackingTarget === "face" && profileState === "capturing_back_head"
+            ? `TRACKING / Head locked - saving back references (${profileCount}/${profileRequired})${angles}`
+            : `TRACKING / ${targetName} locked${angles}`;
         } else {
           state.textContent = "TRACKING / Searching for target";
         }
@@ -439,6 +522,8 @@
     }
 
     track.addEventListener("click", () => command("/api/mode/tracking"));
+    targetFace.addEventListener("click", () => selectTrackingTarget("face"));
+    targetBalloon.addEventListener("click", () => selectTrackingTarget("balloon"));
     land.addEventListener("click", () => command("/api/mode/landing"));
     stop.addEventListener("click", () => command("/api/stop"));
     calibrate.addEventListener("click", async () => {
@@ -467,6 +552,34 @@
         }
       ));
     });
+    liveFaceCalibration.addEventListener("click", async () => {
+      try {
+        const selected = await fetch("/api/tracking-target/face", { method: "POST" });
+        if (!selected.ok) throw new Error(await selected.text());
+        const response = await fetch("/api/mode/tracking", { method: "POST" });
+        if (!response.ok) throw new Error(await response.text());
+        render(await response.json());
+        calibrationProgress.textContent = "Face tracking active - use live S1/S3 fine-tune.";
+      } catch (error) {
+        calibrationProgress.textContent = error.message;
+      }
+    });
+    liveFineTuneButtons.forEach(button => {
+      button.addEventListener("click", async () => {
+        try {
+          await calibrationCommand(
+            "/api/calibration/offset",
+            {
+              pan_delta_deg: Number(button.dataset.livePanDelta),
+              tilt_delta_deg: Number(button.dataset.liveTiltDelta)
+            }
+          );
+          calibrationProgress.textContent = "Live mount offset saved.";
+        } catch (error) {
+          calibrationProgress.textContent = error.message;
+        }
+      });
+    });
     document.querySelector("#move-calibration").addEventListener("click", () => {
       const pan = Number(calPan.value);
       const tilt = Number(calTilt.value);
@@ -488,12 +601,18 @@
     });
     window.addEventListener("resize", positionCalibrationMarker);
     feed.addEventListener("load", positionCalibrationMarker);
-    setInterval(async () => {
+    async function refreshStatus() {
       try {
         const value = await fetch("/api/status").then(response => response.json());
         render(value);
-      } catch (_) {}
-    }, 200);
+      } catch (_) {
+        // A transient camera/server restart should not leave queued requests
+        // competing with the next button click.
+      } finally {
+        window.setTimeout(refreshStatus, 500);
+      }
+    }
+    refreshStatus();
     render({
       mode: "idle",
       tracking: false,
@@ -505,7 +624,9 @@
       tilt_angle_deg: null,
       voice_enabled: false,
       voice_state: "disabled",
-      last_transcript: ""
+      last_transcript: "",
+      tracking_target: null,
+      tracking_target_ready: false
     });
   </script>
 </body>

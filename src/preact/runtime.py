@@ -53,6 +53,9 @@ class PublicStatus:
     voice_state: str
     last_transcript: str
     last_voice_command: str
+    profile_capture_state: str
+    profile_capture_count: int
+    profile_capture_required: int
     reason: str
 
     def as_dict(self) -> dict[str, object]:
@@ -78,6 +81,9 @@ class PublicStatus:
             "voice_state": self.voice_state,
             "last_transcript": self.last_transcript,
             "last_voice_command": self.last_voice_command,
+            "profile_capture_state": self.profile_capture_state,
+            "profile_capture_count": self.profile_capture_count,
+            "profile_capture_required": self.profile_capture_required,
             "reason": self.reason,
         }
 
@@ -148,6 +154,9 @@ class PREACTRuntime:
             voice_state="disabled",
             last_transcript="",
             last_voice_command="",
+            profile_capture_state="inactive",
+            profile_capture_count=0,
+            profile_capture_required=0,
             reason="ready",
         )
 
@@ -194,6 +203,11 @@ class PREACTRuntime:
     @property
     def tracking_target(self) -> str | None:
         return self._tracking_target
+
+    @property
+    def tracking_target_ready(self) -> bool:
+        target = self._tracking_target
+        return target is not None and target in self._tracking_detectors
 
     def register_tracking_detector(
         self,
@@ -323,6 +337,9 @@ class PREACTRuntime:
             self._mode = OperatingMode.IDLE
         if self._thread:
             self._thread.join(timeout=2.0)
+        for detector in self._tracking_detectors.values():
+            if isinstance(detector, FaceDetector):
+                detector.close()
         self.source.close()
         self.engine.genesis.close()
         if self.session_logger is not None:
@@ -448,10 +465,56 @@ class PREACTRuntime:
             )
         return self.pan_tilt_calibration_status()
 
+    def _profile_capture_status(self) -> dict[str, int | str]:
+        detector = self._tracking_detectors.get(self._tracking_target or "")
+        if not isinstance(detector, FaceDetector):
+            return {
+                "profile_capture_state": "inactive",
+                "profile_capture_count": 0,
+                "profile_capture_required": 0,
+            }
+        value = detector.profile_capture_status()
+        return {
+            "profile_capture_state": str(value["state"]),
+            "profile_capture_count": int(value["captured"]),
+            "profile_capture_required": int(value["required"]),
+        }
+
     def finish_pan_tilt_calibration(self) -> dict[str, object]:
         self.stop()
         with self._lock:
             self._calibration_point = None
+        return self.pan_tilt_calibration_status()
+
+    def reset_pan_tilt_calibration(self) -> dict[str, object]:
+        planner = self.engine.pan_tilt_planner
+        if planner is None:
+            raise RuntimeError("pan/tilt calibration is unavailable")
+        self.stop()
+        with self._processing_lock:
+            with self._lock:
+                planner.clear_calibration()
+                self._calibration_point = None
+                self._manual_pan_deg = planner.calibration.neutral_angle_deg
+                self._manual_tilt_deg = planner.calibration.neutral_angle_deg
+        return self.pan_tilt_calibration_status()
+
+    def shift_pan_tilt_calibration(
+        self,
+        *,
+        pan_delta_deg: float,
+        tilt_delta_deg: float,
+    ) -> dict[str, object]:
+        planner = self.engine.pan_tilt_planner
+        if planner is None:
+            raise RuntimeError("pan/tilt calibration is unavailable")
+        if not planner.image_calibration.complete:
+            raise RuntimeError("save all five mount calibration points first")
+        with self._processing_lock:
+            planner.shift_calibration(
+                pan_delta_deg=pan_delta_deg,
+                tilt_delta_deg=tilt_delta_deg,
+            )
         return self.pan_tilt_calibration_status()
 
     def _send_manual_pan_tilt(self) -> None:
@@ -547,6 +610,7 @@ class PREACTRuntime:
                     packet.frame_bgr,
                     snapshot,
                     calibration=self.engine.calibration,
+                    fixed_tracking_marker=(self._tracking_target == "face"),
                     landing_marker_prediction=self._last_landing_prediction,
                     actual_landing_candidate=self._actual_landing_candidate,
                     landing_error_cm=self._current_landing_error_cm(),
@@ -563,6 +627,7 @@ class PREACTRuntime:
                         if self._actual_landing_candidate is not None
                         else self._last_landing_error_cm
                     ),
+                    **self._profile_capture_status(),
                 )
                 self._publish_jpeg(
                     rendered,
@@ -581,7 +646,11 @@ class PREACTRuntime:
 
     def _observe_actual_landing(self, snapshot: EngineSnapshot) -> None:
         detection = snapshot.detection
-        if self._last_landing_prediction is None or detection is None:
+        if (
+            self._last_landing_prediction is None
+            or detection is None
+            or self._actual_landing_candidate is not None
+        ):
             return
         world_x, world_y = self.engine.calibration.pixel_to_world(
             detection.x_px,
@@ -589,16 +658,18 @@ class PREACTRuntime:
         )
         previous_y = self._previous_landing_world_y_m
         self._previous_landing_world_y_m = world_y
-        if world_y > 0.15 or (previous_y is not None and world_y > previous_y + 0.03):
+        if abs(world_y) > 0.08 or (
+            previous_y is not None and world_y > previous_y + 0.03
+        ):
             return
-        candidate = self._actual_landing_candidate
-        if candidate is None or abs(world_y) < abs(candidate[1]):
-            self._actual_landing_candidate = (
-                world_x,
-                world_y,
-                detection.x_px,
-                detection.y_px,
-            )
+        # Publish the first floor-contact measurement once. A bounce, roll or
+        # person moving the ball must not rewrite the judged landing position.
+        self._actual_landing_candidate = (
+            world_x,
+            world_y,
+            detection.x_px,
+            detection.y_px,
+        )
 
     def _current_landing_error_cm(self) -> float | None:
         prediction = self._last_landing_prediction
@@ -672,6 +743,7 @@ def _render(
     snapshot: EngineSnapshot,
     *,
     calibration: PlanarCalibration | None = None,
+    fixed_tracking_marker: bool = False,
     landing_marker_prediction: Prediction | None = None,
     actual_landing_candidate: tuple[float, float, float, float] | None = None,
     landing_error_cm: float | None = None,
@@ -686,6 +758,10 @@ def _render(
         frame_bgr,
         visible_detection,
         state=snapshot.detector_state,
+        fixed_size=(
+            snapshot.mode is OperatingMode.TRACKING
+            and fixed_tracking_marker
+        ),
     )
     prediction = snapshot.prediction
     if (
@@ -886,6 +962,9 @@ def _status_from_snapshot(snapshot: EngineSnapshot, *, playing: bool) -> PublicS
         voice_state="disabled",
         last_transcript="",
         last_voice_command="",
+        profile_capture_state="inactive",
+        profile_capture_count=0,
+        profile_capture_required=0,
         reason=prediction.reason,
     )
 
@@ -921,5 +1000,8 @@ def _idle_status(
         voice_state="disabled",
         last_transcript="",
         last_voice_command="",
+        profile_capture_state="inactive",
+        profile_capture_count=0,
+        profile_capture_required=0,
         reason=reason,
     )

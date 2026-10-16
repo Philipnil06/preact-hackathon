@@ -14,6 +14,9 @@ from pydantic import BaseModel, Field
 from preact.runtime import PREACTRuntime
 
 BOUNDARY = "preact-frame"
+# Tracking still runs at the camera rate.  The browser only needs a responsive
+# operator preview, and decoding 30 MJPEG images/s makes its controls sluggish.
+PREVIEW_FPS = 15.0
 
 
 class CalibrationAdjustment(BaseModel):
@@ -35,6 +38,13 @@ def create_app(runtime: PREACTRuntime) -> FastAPI:
 
     app = FastAPI(title="PREACT", lifespan=lifespan)
 
+    def public_status() -> dict[str, object]:
+        return {
+            **runtime.status().as_dict(),
+            "tracking_target": runtime.tracking_target,
+            "tracking_target_ready": runtime.tracking_target_ready,
+        }
+
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return _index_html()
@@ -42,26 +52,26 @@ def create_app(runtime: PREACTRuntime) -> FastAPI:
     @app.post("/api/play")
     async def play() -> dict[str, object]:
         runtime.play()
-        return runtime.status().as_dict()
+        return public_status()
 
     @app.post("/api/mode/tracking")
     async def tracking() -> dict[str, object]:
         runtime.start_tracking()
-        return runtime.status().as_dict()
+        return public_status()
 
     @app.post("/api/mode/landing")
     async def landing() -> dict[str, object]:
         runtime.start_landing()
-        return runtime.status().as_dict()
+        return public_status()
 
     @app.post("/api/stop")
     async def stop() -> dict[str, object]:
         runtime.stop()
-        return runtime.status().as_dict()
+        return public_status()
 
     @app.get("/api/status")
     async def status() -> dict[str, object]:
-        return runtime.status().as_dict()
+        return public_status()
 
     @app.post("/api/tracking-target/{target}")
     async def tracking_target(target: str) -> dict[str, object]:
@@ -69,11 +79,9 @@ def create_app(runtime: PREACTRuntime) -> FastAPI:
             ready = runtime.select_tracking_target(target)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
-        return {
-            **runtime.status().as_dict(),
-            "tracking_target": runtime.tracking_target,
-            "tracking_target_ready": ready,
-        }
+        value = public_status()
+        value["tracking_target_ready"] = ready
+        return value
 
     @app.get("/api/landing-results")
     async def landing_results() -> list[dict[str, object]]:
@@ -111,6 +119,22 @@ def create_app(runtime: PREACTRuntime) -> FastAPI:
     async def calibration_finish() -> dict[str, object]:
         return runtime.finish_pan_tilt_calibration()
 
+    @app.post("/api/calibration/reset")
+    async def calibration_reset() -> dict[str, object]:
+        return runtime.reset_pan_tilt_calibration()
+
+    @app.post("/api/calibration/offset")
+    async def calibration_offset(
+        adjustment: CalibrationAdjustment,
+    ) -> dict[str, object]:
+        try:
+            return runtime.shift_pan_tilt_calibration(
+                pan_delta_deg=adjustment.pan_delta_deg,
+                tilt_delta_deg=adjustment.tilt_delta_deg,
+            )
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.get("/video")
     async def video() -> StreamingResponse:
         return StreamingResponse(
@@ -137,7 +161,7 @@ async def _mjpeg_stream(runtime: PREACTRuntime) -> AsyncIterator[bytes]:
                 "Content-Type: image/jpeg\r\n"
                 f"Content-Length: {len(frame)}\r\n\r\n"
             ).encode("ascii") + frame + b"\r\n"
-        await asyncio.sleep(1.0 / 30.0)
+        await asyncio.sleep(1.0 / PREVIEW_FPS)
 
 
 def _index_html() -> str:

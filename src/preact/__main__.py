@@ -17,7 +17,7 @@ from preact.claude_targeting import (
 from preact.detection import BallDetector, BallDetectorConfig
 from preact.engine import EngineConfig, PREACTEngine
 from preact.face_detection import FaceDetector, FaceDetectorConfig
-from preact.flight_detection import FlightBallDetector
+from preact.flight_detection import FlightBallDetector, FlightBallDetectorConfig
 from preact.genesis import GenesisEmulator, GenesisSerial, PanTiltSerial
 from preact.pan_tilt import (
     PanTiltCalibration,
@@ -52,6 +52,12 @@ def main() -> None:
     )
     parser.add_argument("--calibration", type=Path)
     parser.add_argument("--detector-profile", type=Path)
+    parser.add_argument(
+        "--landing-detector-profile",
+        type=Path,
+        default=Path("config/red-landing-ball.json"),
+        help="colour and motion profile used only by Calculate Landing",
+    )
     parser.add_argument(
         "--face-detector-profile",
         type=Path,
@@ -187,6 +193,7 @@ def main() -> None:
         host=arguments.host,
         port=arguments.port,
         log_level="info",
+        access_log=False,
     )
 
 
@@ -282,7 +289,10 @@ def _build_hardware_runtime(arguments: argparse.Namespace) -> PREACTRuntime:
         engine_config=EngineConfig(
             require_tof_for_landing=not arguments.vision_only_landing
         ),
-        landing_detector=FlightBallDetector(calibration=calibration),
+        landing_detector=FlightBallDetector(
+            FlightBallDetectorConfig.load(arguments.landing_detector_profile),
+            calibration=calibration,
+        ),
         pan_tilt_planner=(
             PanTiltPlanner(
                 PanTiltCalibration(

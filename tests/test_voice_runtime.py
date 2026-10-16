@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from preact.__main__ import _build_synthetic_runtime
-from preact.models import Prediction
+from preact.models import Detection, Prediction
 from preact.voice import VoiceCommand, VoiceDecision
 
 
@@ -158,5 +159,42 @@ def test_predicted_and_actual_landing_are_saved_for_comparison(
         assert abs(saved["absolute_error_cm"] - 8.0) < 1e-9
         assert saved["measured"] is True
         assert runtime.landing_results() == [saved]
+    finally:
+        runtime.close()
+
+
+def test_actual_landing_stays_at_first_floor_contact() -> None:
+    runtime = _build_synthetic_runtime()
+    runtime._last_landing_prediction = Prediction(
+        valid=True,
+        reason="predicted",
+        generated_at_s=1.0,
+        landing_x_m=1.25,
+        time_to_impact_s=0.4,
+        confidence=0.82,
+        fit=None,
+    )
+
+    def snapshot_at(world_x: float, world_y: float, timestamp_s: float):
+        x_px, y_px = runtime.engine.calibration.world_to_pixel(world_x, world_y)
+        return SimpleNamespace(
+            detection=Detection(
+                timestamp_s=timestamp_s,
+                x_px=x_px,
+                y_px=y_px,
+                radius_px=8.0,
+                area_px2=100.0,
+                quality=0.9,
+            )
+        )
+
+    try:
+        runtime._observe_actual_landing(snapshot_at(1.31, 0.07, 1.0))
+        first = runtime._actual_landing_candidate
+        assert first is not None
+
+        runtime._observe_actual_landing(snapshot_at(1.55, 0.01, 1.1))
+        assert runtime._actual_landing_candidate == first
+        assert abs(first[0] - 1.31) < 1e-9
     finally:
         runtime.close()

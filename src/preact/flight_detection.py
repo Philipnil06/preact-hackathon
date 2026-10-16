@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 
 from preact.calibration import PlanarCalibration
+from preact.detection import HSVRange
 from preact.models import Detection
 
 
@@ -27,6 +30,43 @@ class FlightBallDetectorConfig:
     confirmation_frames: int = 3
     minimum_confirmation_displacement_px: float = 12.0
     minimum_height_above_floor_m: float = 0.08
+    target_hsv_ranges: tuple[HSVRange, ...] = (
+        HSVRange(lower=(0, 90, 55), upper=(16, 255, 255)),
+        HSVRange(lower=(170, 90, 55), upper=(179, 255, 255)),
+    )
+
+    @classmethod
+    def load(cls, path: str | Path) -> FlightBallDetectorConfig:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+        ranges = tuple(
+            HSVRange.from_dict(item) for item in value.get("hsv_ranges", [])
+        )
+        if not ranges:
+            raise ValueError("landing detector profile must contain HSV ranges")
+        defaults = cls()
+        scalar_fields = (
+            "background_frames",
+            "foreground_threshold",
+            "minimum_saturation",
+            "minimum_value",
+            "minimum_area_px2",
+            "maximum_area_px2",
+            "maximum_box_size_px",
+            "maximum_aspect_ratio",
+            "frame_border_margin_px",
+            "association_distance_px",
+            "lock_timeout_s",
+            "confirmation_frames",
+            "minimum_confirmation_displacement_px",
+            "minimum_height_above_floor_m",
+        )
+        return cls(
+            **{
+                name: value.get(name, getattr(defaults, name))
+                for name in scalar_fields
+            },
+            target_hsv_ranges=ranges,
+        )
 
 
 class FlightBallDetector:
@@ -118,11 +158,17 @@ class FlightBallDetector:
     ) -> list[Detection]:
         assert self._background is not None
         hsv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
-        colourful = cv2.inRange(
-            hsv,
-            (0, self.config.minimum_saturation, self.config.minimum_value),
-            (179, 255, 255),
-        )
+        colourful = np.zeros(hsv.shape[:2], dtype=np.uint8)
+        for hsv_range in self.config.target_hsv_ranges:
+            lower = (
+                hsv_range.lower[0],
+                max(hsv_range.lower[1], self.config.minimum_saturation),
+                max(hsv_range.lower[2], self.config.minimum_value),
+            )
+            colourful = cv2.bitwise_or(
+                colourful,
+                cv2.inRange(hsv, lower, hsv_range.upper),
+            )
         difference = cv2.cvtColor(
             cv2.absdiff(frame_bgr, self._background),
             cv2.COLOR_BGR2GRAY,
