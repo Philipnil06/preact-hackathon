@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
 from preact.__main__ import _build_synthetic_runtime
+from preact.models import Detection, Prediction
 from preact.voice import VoiceCommand, VoiceDecision
 
 
@@ -17,6 +22,12 @@ def test_voice_commands_switch_modes_leds_and_idle_safely() -> None:
     runtime = _build_synthetic_runtime()
     genesis = runtime.engine.genesis
     try:
+        runtime.handle_voice_decision(
+            _decision(
+                VoiceCommand.SWITCH_BALLOON,
+                "Hey Preact, switch to balloon",
+            )
+        )
         runtime.handle_voice_decision(
             _decision(
                 VoiceCommand.TRACKING,
@@ -57,5 +68,133 @@ def test_voice_commands_switch_modes_leds_and_idle_safely() -> None:
         )
         assert genesis.servo_state.angle_deg == 90.0
         assert genesis.mode.value == "idle"
+    finally:
+        runtime.close()
+
+
+def test_tracking_requires_a_selected_ready_target() -> None:
+    runtime = _build_synthetic_runtime()
+    try:
+        runtime.handle_voice_decision(
+            _decision(VoiceCommand.TRACKING, "Hey Preact, start tracking")
+        )
+        assert runtime.status().mode == "idle"
+        assert "choose face or balloon" in runtime.status().reason
+
+        runtime.handle_voice_decision(
+            _decision(VoiceCommand.SWITCH_FACE, "Hey Preact, switch to my face")
+        )
+        assert runtime.tracking_target == "face"
+        runtime.handle_voice_decision(
+            _decision(VoiceCommand.TRACKING, "Hey Preact, start tracking")
+        )
+        assert runtime.status().mode == "idle"
+        assert "reference is not ready" in runtime.status().reason
+
+        runtime.handle_voice_decision(
+            _decision(
+                VoiceCommand.SWITCH_BALLOON,
+                "Hey Preact, switch to balloon",
+            )
+        )
+        runtime.handle_voice_decision(
+            _decision(VoiceCommand.TRACKING, "Hey Preact, start tracking")
+        )
+        assert runtime.status().mode == "tracking"
+    finally:
+        runtime.close()
+
+
+def test_landing_marker_expires_after_configured_hold_time() -> None:
+    runtime = _build_synthetic_runtime()
+    prediction = Prediction(
+        valid=True,
+        reason="predicted",
+        generated_at_s=1.0,
+        landing_x_m=1.25,
+        time_to_impact_s=0.4,
+        confidence=0.8,
+        fit=None,
+    )
+    try:
+        runtime._last_landing_prediction = prediction
+        runtime._landing_marker_track_id = 7
+        runtime._landing_marker_expires_at_s = 11.0
+
+        runtime._expire_landing_marker_if_needed(10.99)
+        assert runtime._last_landing_prediction is prediction
+
+        runtime._expire_landing_marker_if_needed(11.0)
+        assert runtime._last_landing_prediction is None
+        assert runtime._landing_marker_expires_at_s is None
+        assert runtime._landing_marker_track_id == 7
+    finally:
+        runtime.close()
+
+
+def test_predicted_and_actual_landing_are_saved_for_comparison(
+    tmp_path: Path,
+) -> None:
+    runtime = _build_synthetic_runtime()
+    result_path = tmp_path / "landing-results.jsonl"
+    runtime.landing_results_path = result_path
+    try:
+        runtime._last_landing_prediction = Prediction(
+            valid=True,
+            reason="predicted",
+            generated_at_s=1.0,
+            landing_x_m=1.25,
+            time_to_impact_s=0.4,
+            confidence=0.82,
+            fit=None,
+        )
+        runtime._landing_marker_track_id = 4
+        runtime._actual_landing_candidate = (1.33, 0.01, 200.0, 300.0)
+
+        runtime._finalize_landing_result()
+
+        saved = json.loads(result_path.read_text(encoding="utf-8"))
+        assert saved["predicted_landing_x_m"] == 1.25
+        assert saved["actual_landing_x_m"] == 1.33
+        assert abs(saved["absolute_error_cm"] - 8.0) < 1e-9
+        assert saved["measured"] is True
+        assert runtime.landing_results() == [saved]
+    finally:
+        runtime.close()
+
+
+def test_actual_landing_stays_at_first_floor_contact() -> None:
+    runtime = _build_synthetic_runtime()
+    runtime._last_landing_prediction = Prediction(
+        valid=True,
+        reason="predicted",
+        generated_at_s=1.0,
+        landing_x_m=1.25,
+        time_to_impact_s=0.4,
+        confidence=0.82,
+        fit=None,
+    )
+
+    def snapshot_at(world_x: float, world_y: float, timestamp_s: float):
+        x_px, y_px = runtime.engine.calibration.world_to_pixel(world_x, world_y)
+        return SimpleNamespace(
+            detection=Detection(
+                timestamp_s=timestamp_s,
+                x_px=x_px,
+                y_px=y_px,
+                radius_px=8.0,
+                area_px2=100.0,
+                quality=0.9,
+            )
+        )
+
+    try:
+        runtime._observe_actual_landing(snapshot_at(1.31, 0.07, 1.0))
+        first = runtime._actual_landing_candidate
+        assert first is not None
+
+        runtime._observe_actual_landing(snapshot_at(1.55, 0.01, 1.1))
+        assert runtime._actual_landing_candidate == first
+        assert abs(first[0] - 1.31) < 1e-9
     finally:
         runtime.close()

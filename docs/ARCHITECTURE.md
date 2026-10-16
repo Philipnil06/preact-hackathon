@@ -1,14 +1,21 @@
 # Architecture
 
-## Current proof vs. venue build
+## Current runtime and hardware paths
 
-The checked-in runtime proves perception and landing prediction in a calibrated
-side-on camera plane and maps that result to a single planar pointer angle. The
-venue target is a two-servo pan/tilt pointer plus a ToF passage/range sensor.
-That mechanical 3D layer still requires hardware pin-map, pan/tilt geometry,
-and range calibration at the venue. A single fixed ToF sensor is useful for
-release detection and a distance sample; it does not by itself reconstruct an
-unconstrained 3D flight path.
+The runtime estimates landing in a calibrated side-on plane and can map the
+result to a planar pointer. A separate two-axis pan/tilt path follows an image
+target using a five-point mount calibration. These are distinct actuator
+interfaces, not a calibrated 3D landing system. A single fixed ToF sensor
+provides a release event, not an unconstrained 3D trajectory.
+
+| Adapter | Firmware | Capabilities |
+| --- | --- | --- |
+| `GenesisSerial` | `firmware/genesis_mini/preact_genesis/preact_genesis.ino` | JSON; one pointer angle, ToF samples, two mode LEDs |
+| `PanTiltSerial` | `servo/firmware/sketch.ino` | Text commands/acknowledgements on S1 and S3; no ToF or mode LEDs |
+| `GenesisEmulator` | None | Synthetic/replay/bench hardware substitute |
+
+The diagram below shows the original JSON path. See [Setup](SETUP.md) for
+commands selecting either hardware interface.
 
 ## End-to-end flow
 
@@ -89,6 +96,12 @@ static background near the release line:
 The thresholds are configurable at runtime and in `ToFGateConfig`.
 
 ## Camera pipeline
+
+Tracking uses the colour detector or an explicitly commissioned local face
+detector. Live/replay landing mode has its own `FlightBallDetector`, combining
+red HSV ranges with a learned empty background and motion confirmation. Its
+profile defaults to `config/red-landing-ball.json`. The synthetic demo instead
+uses generated ball frames and the base detector.
 
 1. Capture at a requested 1280 × 720, 30 FPS with monotonic timestamps.
 2. Apply one or two OpenCV HSV ranges. Two ranges handle hue wraparound at red.

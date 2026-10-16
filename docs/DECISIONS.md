@@ -1,5 +1,10 @@
 # Decision log
 
+> Historical decisions from hackathon development. Later work added a separate
+> pan/tilt text-protocol path and optional face tracking. Use [Setup](SETUP.md)
+> and [Architecture](ARCHITECTURE.md) for the current interfaces; planned work
+> below is not evidence of measured hardware performance.
+
 ## D-001 — Controlled 2D/2.5D throwing plane
 
 **Decision:** Use a side-on camera and constrain throws near one calibrated

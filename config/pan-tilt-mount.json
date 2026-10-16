@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "points": {
+    "center": {
+      "pan_deg": 99.0,
+      "tilt_deg": 80.0
+    },
+    "top_left": {
+      "pan_deg": 129.0,
+      "tilt_deg": 100.0
+    },
+    "top_right": {
+      "pan_deg": 69.0,
+      "tilt_deg": 100.0
+    },
+    "bottom_left": {
+      "pan_deg": 124.0,
+      "tilt_deg": 40.0
+    },
+    "bottom_right": {
+      "pan_deg": 84.0,
+      "tilt_deg": 35.0
+    }
+  }
+}

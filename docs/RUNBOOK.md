@@ -1,5 +1,9 @@
 # Venue runbook
 
+> Historical JSON-firmware integration checklist from the hackathon. For the
+> current pan/tilt text-protocol path, use [Setup](SETUP.md). This document
+> records planned procedures, not a completed hardware evaluation.
+
 ## Important scope note
 
 Camera-only `--vision-only-landing` is a local bench mode used to tune the

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -161,10 +162,22 @@ class OpenCVFrameSource:
         requested_fps: float | None = None,
     ) -> None:
         self.source = source
-        self._capture = cv2.VideoCapture(str(source) if isinstance(source, Path) else source)
+        capture_source = str(source) if isinstance(source, Path) else source
+        self._capture = (
+            cv2.VideoCapture(capture_source, cv2.CAP_DSHOW)
+            if isinstance(source, int) and sys.platform == "win32"
+            else cv2.VideoCapture(capture_source)
+        )
         if not self._capture.isOpened():
             raise RuntimeError(f"could not open video source {source!r}")
         if isinstance(source, int):
+            # Most Windows webcams only expose their higher frame-rate modes
+            # through the compressed MJPEG transport.
+            if sys.platform == "win32" and requested_fps is not None:
+                self._capture.set(
+                    cv2.CAP_PROP_FOURCC,
+                    cv2.VideoWriter_fourcc(*"MJPG"),
+                )
             if requested_width_px is not None:
                 self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, requested_width_px)
             if requested_height_px is not None:

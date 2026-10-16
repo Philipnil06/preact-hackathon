@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "board": "genesis-mini",
+  "modules": [
+    { "port": 1, "module_id": "AX22-0031" }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "profile_name": "red-taped-landing-ball",
+  "hsv_ranges": [
+    {
+      "lower": [
+        0,
+        90,
+        55
+      ],
+      "upper": [
+        16,
+        255,
+        255
+      ]
+    },
+    {
+      "lower": [
+        170,
+        90,
+        55
+      ],
+      "upper": [
+        179,
+        255,
+        255
+      ]
+    }
+  ],
+  "background_frames": 10,
+  "foreground_threshold": 12,
+  "minimum_saturation": 55,
+  "minimum_value": 35,
+  "minimum_area_px2": 10.0,
+  "maximum_area_px2": 1800.0,
+  "maximum_box_size_px": 60,
+  "maximum_aspect_ratio": 3.5,
+  "frame_border_margin_px": 12,
+  "association_distance_px": 95.0,
+  "lock_timeout_s": 0.35,
+  "confirmation_frames": 3,
+  "minimum_confirmation_displacement_px": 10.0,
+  "minimum_height_above_floor_m": 0.08
+}

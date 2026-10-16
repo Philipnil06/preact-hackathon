@@ -6,7 +6,7 @@ import numpy as np
 from preact.flight_detection import FlightBallDetector, FlightBallDetectorConfig
 
 
-def test_flight_detector_learns_background_then_follows_small_colourful_ball() -> None:
+def test_flight_detector_learns_background_then_follows_small_red_ball() -> None:
     detector = FlightBallDetector(FlightBallDetectorConfig(background_frames=3))
     background = np.full((240, 320, 3), 35, dtype=np.uint8)
 
@@ -18,7 +18,7 @@ def test_flight_detector_learns_background_then_follows_small_colourful_ball() -
     detections = []
     for index, position in enumerate(positions):
         frame = background.copy()
-        cv2.circle(frame, position, 7, (0, 220, 255), -1)
+        cv2.circle(frame, position, 7, (0, 0, 255), -1)
         detections.append(detector.detect(frame, timestamp_s=0.10 + index / 30.0))
 
     assert detections[0] is None
@@ -54,6 +54,18 @@ def test_clear_track_keeps_the_learned_background_for_the_next_throw() -> None:
 
     assert detector.state == "searching"
     frame = background.copy()
-    cv2.circle(frame, (270, 150), 7, (0, 220, 255), -1)
+    cv2.circle(frame, (270, 150), 7, (0, 0, 255), -1)
     assert detector.detect(frame, timestamp_s=0.2) is None
     assert detector.state == "acquiring"
+
+
+def test_flight_detector_rejects_moving_blue_object() -> None:
+    detector = FlightBallDetector(FlightBallDetectorConfig(background_frames=3))
+    background = np.full((240, 320, 3), 35, dtype=np.uint8)
+    for index in range(3):
+        assert detector.detect(background, timestamp_s=index / 30.0) is None
+
+    for index, position in enumerate(((270, 150), (250, 120), (229, 96), (207, 78))):
+        frame = background.copy()
+        cv2.circle(frame, position, 7, (255, 0, 0), -1)
+        assert detector.detect(frame, timestamp_s=0.2 + index / 30.0) is None

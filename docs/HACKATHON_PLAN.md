@@ -1,5 +1,9 @@
 # 24-hour hackathon plan
 
+> Historical planning notes from July 2026. Tasks and targets below are not
+> completion claims. See [Setup](SETUP.md) for current operating modes and
+> [Validation](VALIDATION.md) for the checks reproduced on the review branch.
+
 The software foundation is prepared before the event. The first half of the
 hackathon is therefore hardware-first, not a fresh coding sprint.
 
