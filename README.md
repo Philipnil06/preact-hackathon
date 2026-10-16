@@ -3,7 +3,8 @@
 **Track a moving object. Predict where it will land. Point before impact.**
 
 PREACT is a camera-based robotics prototype built by **Philip, Michelle, and
-Malte** for the **Axiometa × Anthropic Hardware Hack**, London, 17–19 July 2026.
+Malte** in **24 hours** at the **Axiometa × Anthropic Hardware Hack** in London,
+17–19 July 2026.
 It combines local computer vision, a physics-based trajectory estimator, and a
 microcontroller-driven pointer in a voice-controlled demo.
 
