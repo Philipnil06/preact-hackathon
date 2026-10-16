@@ -1,3 +1,5 @@
+param([switch]$IncludeFirmware)
+
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -21,6 +23,11 @@ try {
     & $python -m preact.trajectory_validation --scenarios 300
     if ($LASTEXITCODE -ne 0) {
         throw "Trajectory validation gate failed"
+    }
+
+    if (-not $IncludeFirmware) {
+        Write-Host "PREACT Python verification passed. Use -IncludeFirmware for Arduino compilation." -ForegroundColor Green
+        return
     }
 
     $arduino = Get-Command arduino-cli -ErrorAction SilentlyContinue

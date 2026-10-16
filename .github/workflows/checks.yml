@@ -1,0 +1,43 @@
+name: Python checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Tests
+        run: python -m pytest -q
+      - name: Lint
+        run: python -m ruff check src tests
+      - name: Synthetic trajectory validation
+        run: python -m preact.trajectory_validation --scenarios 300
+      - name: Build wheel
+        run: python -m pip wheel --no-deps --wheel-dir work/dist .
+      - name: Check packaged UI
+        shell: python
+        run: |
+          from pathlib import Path
+          from zipfile import ZipFile
+          wheel, = Path('work/dist').glob('*.whl')
+          with ZipFile(wheel) as archive:
+              page = archive.read('preact/static/index.html').decode('utf-8')
+              assert 'Calculate landing' in page
